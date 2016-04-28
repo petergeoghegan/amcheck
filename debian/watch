@@ -1,0 +1,2 @@
+version=3
+https://github.com/petergeoghegan/amcheck/releases /petergeoghegan/amcheck/archive/v(.*).tar.gz

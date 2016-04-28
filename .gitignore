@@ -1,0 +1,5 @@
+*.o
+*.so
+*.swp
+.deps
+.vagrant

@@ -1,0 +1,3 @@
+# Only support versions with robust approach to B-Tree page deletion and
+# concurrent page splits
+9.4+

@@ -1,0 +1,5 @@
+amcheck (0.1-1) unstable; urgency=low
+
+  * Initial release
+
+ -- Peter Geoghegan <pg@bowt.ie>  Fri, 29 Apr 2016 11:28:09 -0700

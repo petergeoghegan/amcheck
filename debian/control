@@ -1,0 +1,31 @@
+Source: amcheck
+Priority: extra
+Maintainer: Peter Geoghegan <pg@bowt.ie>
+Build-Depends: debhelper (>= 9), postgresql-server-dev-all (>= 171~)
+Standards-Version: 3.9.6
+Section: database
+Homepage: https://github.com/petergeoghegan/amcheck
+Vcs-Git: https://github.com/petergeoghegan/amcheck.git
+Vcs-Browser: https://github.com/petergeoghegan/amcheck
+XS-Testsuite: autopkgtest
+
+Package: postgresql-9.4-amcheck
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, postgresql-9.4
+Description: PostgreSQL extension that verifies indexes
+ This extension verifies the logical consistency of PostgreSQL B-Tree indexes.
+ The extension consists of SQL-callable functions.  When no error is raised
+ during a call to these verification functions, no logical inconsistency was
+ detected.  This is useful as a general smoke test to detect corruption.
+
+Package: postgresql-9.5-amcheck
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, postgresql-9.5
+Description: PostgreSQL extension that verifies indexes
+ This extension verifies the logical consistency of PostgreSQL B-Tree indexes.
+ The extension consists of SQL-callable functions.  When no error is raised
+ during a call to these verification functions, no logical inconsistency was
+ detected.  This is useful as a general smoke test to detect corruption.
+

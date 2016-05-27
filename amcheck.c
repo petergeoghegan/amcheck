@@ -1136,7 +1136,7 @@ invariant_key_less_than_equal_offset(BtreeCheckState *state, ScanKey key,
 }
 
 /*
- * invariant_key_less_than_equal_offset()
+ * invariant_key_greater_than_equal_offset()
  *
  * Does the invariant hold that the key is greater than or equal to a given
  * lower bound offset item?

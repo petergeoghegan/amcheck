@@ -41,9 +41,9 @@ operator class support functions.
 
 ### Project background
 
-`amcheck` is proposed as a contrib extension for PostgreSQL 9.7.  This
-externally maintained version of the extension exists to target earlier
-versions of PostgreSQL (PostgreSQL 9.4+).
+`amcheck` is proposed as a contrib extension for PostgreSQL 10, scheduled for
+release in 2017.  This externally maintained version of the extension exists to
+target earlier versions of PostgreSQL (PostgreSQL 9.4+).
 
 ### Bugs
 

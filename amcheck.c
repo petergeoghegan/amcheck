@@ -51,13 +51,13 @@ PG_MODULE_MAGIC;
 					 (errmsg("must be superuser to use verification functions")))); }
 
 /*
-* As noted in comments above _bt_compare(), there is special handling of the
-* first data item (that is, the first item with a valid downlink -- not the
-* high key item) on a non-leaf (internal) page.  There is clearly no point in
-* having amcheck functions make any comparison of or against these "minus
-* infinity" items, because they contain no actual information other than the
-* downlink.
-*/
+ * As noted in comments above _bt_compare(), there is special handling of the
+ * first data item (that is, the first item with a valid downlink -- not the
+ * high key item) on a non-leaf (internal) page.  There is clearly no point in
+ * having amcheck functions make any comparison of or against these "minus
+ * infinity" items, because they contain no actual information other than the
+ * downlink.
+ */
 #define OFFSET_IS_MINUS_INFINITY(opaque, offset) \
 	(!P_ISLEAF(opaque) && offset == P_FIRSTDATAKEY(opaque))
 

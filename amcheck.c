@@ -75,7 +75,7 @@ PG_MODULE_MAGIC;
 #define CONCERN			WARNING
 #else
 #define CORRUPTION		ERROR
-#define CONCERN			INFO
+#define CONCERN			DEBUG1
 #endif
 
 /*
@@ -423,7 +423,7 @@ bt_check_level_from_leftmost(BtreeCheckState *state, BtreeLevel level)
 	/* Use page-level context for duration of this call */
 	oldcontext = MemoryContextSwitchTo(state->targetcontext);
 
-	elog(DEBUG1, "verifying level %u%s", level.level,
+	elog(DEBUG2, "verifying level %u%s", level.level,
 		 level.istruerootlevel?
 		 " (true root level)" : level.level == 0 ? " (leaf level)" : "");
 
@@ -585,7 +585,7 @@ bt_target_page_check(BtreeCheckState *state)
 	topaque = (BTPageOpaque) PageGetSpecialPointer(state->target);
 	max = PageGetMaxOffsetNumber(state->target);
 
-	elog(DEBUG1, "verifying %u items on %s block %u", max,
+	elog(DEBUG2, "verifying %u items on %s block %u", max,
 		 P_ISLEAF(topaque) ? "leaf":"internal", state->targetblock);
 
 	/*

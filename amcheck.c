@@ -736,6 +736,7 @@ bt_target_page_check(BtreeCheckState *state)
 				{
 					/* Get fresh copy of target page */
 					state->target = palloc_btree_page(state, state->targetblock);
+					/* Note that we deliberately do not update target LSN */
 					topaque = (BTPageOpaque) PageGetSpecialPointer(state->target);
 
 					/*
@@ -754,10 +755,8 @@ bt_target_page_check(BtreeCheckState *state)
 						 errmsg("cross page order invariant violated for index \"%s\"",
 								RelationGetRelationName(state->rel)),
 						 errdetail_internal("Last item on page tid=(%u,%u) "
-											"right page block=%u "
 											"page lsn=%X/%X.",
 											state->targetblock, offset,
-											topaque->btpo_next,
 											(uint32) (state->targetlsn >> 32),
 											(uint32) state->targetlsn)));
 			}

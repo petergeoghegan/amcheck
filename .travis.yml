@@ -4,6 +4,9 @@ dist: trusty
 env:
   global:
     secure: adkro9qIBnG0Iilmn4QmcgpyPbYlJnF/KpLDKKbFu3NRcZNgaAiHDMa4MzSyWexFeW6BExYBYfdbgPm2vmGvfptM51TrBR2TbrCRVOlq+l6Iv0nc/eXfbnz4HDMHmc1l26HWd0/FAJkYZlvBCY2NMjL5rIXm3aJZn1JurfNxsNh4uC5ge4hcIeWn3K5HfR39tqyO1A5Y2Qqw4A3R5h6em4GdR4ZEVffAJFDkejcdx0h5aON+NGXXuhtVRYHp2IOpcf3RO1bdCpZXrxM+NpQbN6NsDAS7xZt4oIMd0Q/hBUHyVxqhRQpvDftbO4hm5kWXxf6ffoUETR9ebUe4rUZ1EUiEOa23/KHBFUzxuG7wCg/k5X1J50o6+5Kydkeef+qRqR6qMmezlwXyXhh2k/0Jj0rN4LqkNU49y/9bXhat/oVTE2R0xLH3BbNjK9HCGKLXMs1GJAiywZDkGZXiyHaRh14tbgXTKiJkkSKX5wEauxbBOkWIiCiShWx85JSUUjT6jH6xi8UshEa3Uhxhv4aWuH0Apv+f0nABdNkDRX+WL/8DYWYr6t4iLjoKe9PfGs/NGx9L0YPq6fOY1cMmr/h1hGPeMvyncxg6Lj+BR8Wix7TU1QEdDIgw4cKAKenwvSSa/BvDmIGNX7V91OI0OLD4UNu0hloPv1YYR+kb9noQqT0=
+  matrix:
+    - DIST=precise
+    - DIST=trusty
 before_install:
 - wget --quiet -O - https://packagecloud.io/gpg.key | sudo apt-key add -
 - curl -s https://${TOKEN}:@packagecloud.io/install/repositories/heroku/dod/script.deb.sh
@@ -16,7 +19,7 @@ script:
 - make deb
 deploy:
 - provider: packagecloud
-  dist: ubuntu/trusty
+  dist: ubuntu/$DIST
   package_glob: build/*.deb
   username: heroku
   repository: dod

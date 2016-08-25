@@ -27,9 +27,11 @@ the structure of the representation of particular indexes.  The correctness of
 the access method functions behind index scans and other important operations
 is predicated on these invariants always holding.  For example, certain
 functions verify, among other things, that all B-Tree pages have items in
-"logical" order; if that particular invariant somehow fails to hold, we can
-expect binary searches on any affected page to produce wrong answers.  As a
-consequence of that, index scans may subtly produce wrong answers.
+"logical", sorted order (e.g., for B-Tree indexes on text, index tuples should
+be in collated lexical order).  If that particular invariant somehow fails to
+hold, we can expect binary searches on the affected page to incorrectly guide
+index scans, resulting in wrong answers to SQL queries.  Problems like this can
+be very subtle, and might otherwise remain undetected.
 
 Verification is performed using the same procedures as those used by index
 scans themselves, which may be user-defined operator class code.  For example,
@@ -103,7 +105,20 @@ that currently, no function inspects the structure of the underlying heap
 representation (table).
 
 `regclass` function arguments are used by `amcheck` to identify particular
-index relations.  See the <a href="http://www.postgresql.org/docs/current/static/datatype-oid.html">PostgreSQL
+index relations.  This allows `amcheck` to accept arguments using various
+SQL calling conventions:
+
+```sql
+  -- Use string literal regclass input:
+  SELECT bt_index_check('pg_database_oid_index');
+  -- Use oid regclass input (both perform equivalent verification):
+  SELECT bt_index_check(2672);
+  SELECT bt_index_check(oid) FROM pg_class
+  WHERE relname = 'pg_database_oid_index';
+```
+
+See the <a
+href="http://www.postgresql.org/docs/current/static/datatype-oid.html">PostgreSQL
 documentation on Object identifier types</a> for more information.
 
 ### `bt_index_check(index regclass) returns void`
@@ -174,61 +189,111 @@ An `ExclusiveLock` is required on the target index by bt_index_parent_check (a
 `ShareLock` is also acquired on the heap relation).  These locks prevent
 concurrent data modification from `INSERT`, `UPDATE`, and `DELETE` commands.
 The locks also prevent the underlying relation from being concurrently
-processed by `VACUUM` and certain other utility commands.  Note that the
-function holds locks for as short a duration as possible, so there is no
-advantage to verifying each index individually in a series of transactions.
+processed by `VACUUM` (and other utility commands).  Note that the function
+holds locks for as short a duration as possible, so there is no advantage to
+verifying each index individually in a series of transactions, unless long
+running queries happen to be of particular concern.
 
 `bt_index_parent_check`'s additional verification is more likely to detect
 various pathological cases.  These cases may involve an incorrectly implemented
 B-Tree operator class used by the index that is checked, or, hypothetically,
 undiscovered bugs in the underlying B-Tree index access method code.  Note that
-`bt_index_parent_check` requires locks in a way that is incompatible with Hot
-Standby, unlike `bt_index_check`.
+`bt_index_parent_check` cannot be called when Hot Standby is enabled (i.e., on
+read-only physical replicas), unlike `bt_index_check`.
 
 ## Using amcheck effectively
+
+### Causes of corruption
 
 `amcheck` can be effective at detecting various types of failure modes that
 data page checksums will always fail to catch.  These include:
 
-* Filesystem or storage subsystem faults where checksums happen to simply not
-  be enabled.  Note that `amcheck` examines a page as represented in some
-  shared memory buffer at the time of verification if there is only a shared
-  buffer hit when accessing the block.  Consequently, `amcheck` does not
-  necessarily examine data read from the filesystem at the time of
-  verification.  Note that when checksums are enabled, `amcheck` may raise an
-  error due to a checksum failure when a corrupt block is read into a buffer.
-
-* Corruption caused by faulty RAM, and the broader memory subsystem and
-  operating system.  PostgreSQL does not protect against correctable memory
-  errors and it is assumed you will operate using RAM that uses industry
-  standard Error Correcting Codes (ECC) or better protection.  However, ECC
-  memory is typically only immune to single-bit errors, and should not be
-  assumed to provide *absolute* protection against failures that result in
-  memory corruption.
-
 * Structural inconsistencies caused by incorrect operator class
-  implementations, including issues due to the comparison rules of operating
-  system collations changing the ordering implied by comparisons of an
-  underlying collatable type, such as text.  Though rare, updates to operating
-  system collation rules can cause these issues.  More commonly, an
-  inconsistency in the collation order between a master server and a standby
-  server is implicated, possibly because the *major* operating system version
-  in use is inconsistent.  Such inconsistencies will generally only arise on
-  standby servers, and so can generally only be detected on standby servers.
-  If a problem like this arises, it may not affect each individual index that
-  is ordered using an affected collation, simply because *indexed* values might
-  happen to have the same absolute ordering regardless of the behavioral
-  inconsistency.
+  implementations.
+
+This includes issues caused by the comparison rules of operating system
+collations changing.  Comparisons of datums of a collatable type like `text`
+must be immutable (just as all comparisons used for B-Tree index scans must be
+immutable), which implies that operating system collation rules must never
+change.
+
+Though rare, updates to operating system collation rules can cause these
+issues.  More commonly, an inconsistency in the collation order between a
+master server and a standby server is implicated, possibly because the *major*
+operating system version in use is inconsistent.  Such inconsistencies will
+generally only arise on standby servers, and so can generally only be detected
+on standby servers.
+
+If a problem like this arises, it may not affect each individual index that is
+ordered using an affected collation, simply because *indexed* values might
+happen to have the same absolute ordering regardless of the behavioral
+inconsistency.
 
 * Corruption caused by hypothetical undiscovered bugs in the underlying
-  PostgreSQL access method code.  Automatic verification of the structural
-  integrity of indexes plays a role in the general testing of new or proposed
-  PostgreSQL features that could plausibly allow a logical inconsistency to be
-  introduced.  One obvious testing strategy is to call `amcheck` functions
-  continuously when running the standard regression tests.
+  PostgreSQL access method code or sort code.
+
+Automatic verification of the structural integrity of indexes plays a role in
+the general testing of new or proposed PostgreSQL features that could plausibly
+allow a logical inconsistency to be introduced.  One obvious testing strategy
+is to call `amcheck` functions continuously when running the standard
+regression tests.
+
+* Filesystem or storage subsystem faults where checksums happen to simply not
+  be enabled.
+
+Note that `amcheck` examines a page as represented in some shared memory buffer
+at the time of verification if there is only a shared buffer hit when accessing
+the block.  Consequently, `amcheck` does not necessarily examine data read from
+the filesystem at the time of verification.  Note that when checksums are
+enabled, `amcheck` may raise an error due to a checksum failure when a corrupt
+block is read into a buffer.
+
+* Corruption caused by faulty RAM, and the broader memory subsystem and
+  operating system.
+
+PostgreSQL does not protect against correctable memory errors and it is assumed
+you will operate using RAM that uses industry standard Error Correcting Codes
+(ECC) or better protection.  However, ECC memory is typically only immune to
+single-bit errors, and should not be assumed to provide *absolute* protection
+against failures that result in memory corruption.
+
+### Overhead
+
+The overhead of calling `bt_index_check` for every index on a live production
+system is roughly comparable to the overhead of vacuuming; like `VACUUM`,
+verification uses a "buffer access strategy", which limits its impact on which
+pages are cached within `shared_buffers`.  A major design goal of `amcheck` is
+to support routine verification of all indexes on busy production systems.
+
+No `amcheck` routine will ever modify data, and so no pages will ever be
+"dirtied", which is not the case with `VACUUM`.  On the other hand, `amcheck`
+may be required to verify a large number of indexes all at once, which is
+typically not a behavior that autovacuum exhibits.  `amcheck` exhaustively
+accessed every page in each index verified.  This behavior is useful in part
+because verification may detect a checksum failure, which may have previously
+gone undetected only because no process needed data from the corrupt page in
+question, including even an autovacuum worker process.
+
+Note also that `bt_index_check` and `bt_index_parent_check` access the contents
+of indexes in "logical" order, which, in the worst case, implies that all I/O
+operations are performed at random positions on the filesystem.  In contrast,
+`VACUUM` always removes dead index tuples from B-Tree indexes while accessing
+the contents of B-Tree indexes in sequential order.
+
+### Acting on information about corruption
 
 No error concerning corruption raised by `amcheck` should ever be a false
-positive.  Users are strongly advised to perform a `REINDEX` for any index
-where corruption is indicated, although it is also important to identify and
-correct the underlying problem.  In general, `amcheck` can only prove the
-presence of corruption; it cannot prove its absence.
+positive.  In practice, `amcheck` is more likely to find software bugs than
+problems with hardware.  `amcheck` raises errors in the event of conditions
+that, by definition, should never happen.  It seems unlikely that there could
+ever be a useful *general* remediation to problems it detects.
+
+In general, an explanation for the root cause of an invariant violation should
+be sought.  The <a
+href="https://www.postgresql.org/docs/current/static/pageinspect.html">pageinspect</a>
+tool can play a useful role in diagnosing corruption that `amcheck` highlights.
+A `REINDEX` may or may not be effective in repairing corruption, depending on
+the exact details of how the corruption originated.
+
+In general, `amcheck` can only prove the presence of corruption; it cannot
+prove its absence.

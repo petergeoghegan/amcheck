@@ -264,14 +264,14 @@ btree_index_checkable(Relation rel)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("only nbtree access method indexes are supported"),
-				 errdetail("index \"%s\" does not using the nbtree access method.",
+				 errdetail("Relation \"%s\" is not a B-Tree index.",
 						   RelationGetRelationName(rel))));
 
 	if (RELATION_IS_OTHER_TEMP(rel))
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("cannot access temporary tables of other sessions"),
-				 errdetail("index \"%s\" is associated with temporary relation.",
+				 errdetail("Index \"%s\" is associated with temporary relation.",
 						   RelationGetRelationName(rel))));
 
 	if (!rel->rd_index->indisready)
@@ -279,14 +279,14 @@ btree_index_checkable(Relation rel)
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("cannot check index \"%s\"",
 						RelationGetRelationName(rel)),
-				 errdetail("index is not yet ready for insertions")));
+				 errdetail("Index is not yet ready for insertions")));
 
 	if (!rel->rd_index->indisvalid)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("cannot check index \"%s\"",
 						RelationGetRelationName(rel)),
-				 errdetail("index is not valid")));
+				 errdetail("Index is not valid")));
 }
 
 /*

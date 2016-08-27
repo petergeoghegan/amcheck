@@ -271,7 +271,7 @@ No `amcheck` routine will ever modify data, and so no pages will ever be
 "dirtied", which is not the case with `VACUUM`.  On the other hand, `amcheck`
 may be required to verify a large number of indexes all at once, which is
 typically not a behavior that autovacuum exhibits.  `amcheck` exhaustively
-accessed every page in each index verified.  This behavior is useful in part
+accesses every page in each index verified.  This behavior is useful in part
 because verification may detect a checksum failure, which may have previously
 gone undetected only because no process needed data from the corrupt page in
 question, including even an autovacuum worker process.

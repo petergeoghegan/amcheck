@@ -49,9 +49,11 @@ target earlier versions of PostgreSQL (PostgreSQL 9.4+).
 
 ### Bugs
 
-Report bugs using the <a href="https://github.com/petergeoghegan/amcheck/issues">Github
-issue tracker</a>.  Feature requests will not accepted, because `amcheck` is
-targeted for future inclusion into PostgreSQL as a contrib module.
+Report bugs using the <a
+href="https://github.com/petergeoghegan/amcheck/issues">Github issue
+tracker</a>.  Feature requests will not accepted, since `amcheck` is targeted
+for future inclusion into PostgreSQL as a contrib module (however, `amcheck`
+may in the future support building packages on additional platforms).
 
 ## Installation
 

@@ -3,28 +3,30 @@ sudo: required
 dist: trusty
 env:
   global:
-    secure: adkro9qIBnG0Iilmn4QmcgpyPbYlJnF/KpLDKKbFu3NRcZNgaAiHDMa4MzSyWexFeW6BExYBYfdbgPm2vmGvfptM51TrBR2TbrCRVOlq+l6Iv0nc/eXfbnz4HDMHmc1l26HWd0/FAJkYZlvBCY2NMjL5rIXm3aJZn1JurfNxsNh4uC5ge4hcIeWn3K5HfR39tqyO1A5Y2Qqw4A3R5h6em4GdR4ZEVffAJFDkejcdx0h5aON+NGXXuhtVRYHp2IOpcf3RO1bdCpZXrxM+NpQbN6NsDAS7xZt4oIMd0Q/hBUHyVxqhRQpvDftbO4hm5kWXxf6ffoUETR9ebUe4rUZ1EUiEOa23/KHBFUzxuG7wCg/k5X1J50o6+5Kydkeef+qRqR6qMmezlwXyXhh2k/0Jj0rN4LqkNU49y/9bXhat/oVTE2R0xLH3BbNjK9HCGKLXMs1GJAiywZDkGZXiyHaRh14tbgXTKiJkkSKX5wEauxbBOkWIiCiShWx85JSUUjT6jH6xi8UshEa3Uhxhv4aWuH0Apv+f0nABdNkDRX+WL/8DYWYr6t4iLjoKe9PfGs/NGx9L0YPq6fOY1cMmr/h1hGPeMvyncxg6Lj+BR8Wix7TU1QEdDIgw4cKAKenwvSSa/BvDmIGNX7V91OI0OLD4UNu0hloPv1YYR+kb9noQqT0=
+    - PG_SUPPORTED_VERSIONS="9.1\n9.2\n9.3\n9.4\n9.5\n9.6"
+  secure: adkro9qIBnG0Iilmn4QmcgpyPbYlJnF/KpLDKKbFu3NRcZNgaAiHDMa4MzSyWexFeW6BExYBYfdbgPm2vmGvfptM51TrBR2TbrCRVOlq+l6Iv0nc/eXfbnz4HDMHmc1l26HWd0/FAJkYZlvBCY2NMjL5rIXm3aJZn1JurfNxsNh4uC5ge4hcIeWn3K5HfR39tqyO1A5Y2Qqw4A3R5h6em4GdR4ZEVffAJFDkejcdx0h5aON+NGXXuhtVRYHp2IOpcf3RO1bdCpZXrxM+NpQbN6NsDAS7xZt4oIMd0Q/hBUHyVxqhRQpvDftbO4hm5kWXxf6ffoUETR9ebUe4rUZ1EUiEOa23/KHBFUzxuG7wCg/k5X1J50o6+5Kydkeef+qRqR6qMmezlwXyXhh2k/0Jj0rN4LqkNU49y/9bXhat/oVTE2R0xLH3BbNjK9HCGKLXMs1GJAiywZDkGZXiyHaRh14tbgXTKiJkkSKX5wEauxbBOkWIiCiShWx85JSUUjT6jH6xi8UshEa3Uhxhv4aWuH0Apv+f0nABdNkDRX+WL/8DYWYr6t4iLjoKe9PfGs/NGx9L0YPq6fOY1cMmr/h1hGPeMvyncxg6Lj+BR8Wix7TU1QEdDIgw4cKAKenwvSSa/BvDmIGNX7V91OI0OLD4UNu0hloPv1YYR+kb9noQqT0=
   matrix:
     - DIST=precise
     - DIST=trusty
 before_install:
-- wget --quiet -O - https://packagecloud.io/gpg.key | sudo apt-key add -
-- curl -s https://${TOKEN}:@packagecloud.io/install/repositories/heroku/dod/script.deb.sh
-  | sudo bash
-- sudo apt-get update
-- sudo apt-get -y --force-yes install debhelper devscripts postgresql-server-dev-all
+  - sudo apt-get -y install wget software-properties-common
+  - sudo add-apt-repository -y "deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main 9.6" && wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+  - sudo apt-get update
+  - sudo apt-get -y --force-yes install debhelper devscripts postgresql-server-dev-all postgresql-server-dev-9.6
+  - sudo rm -f /usr/share/postgresql-common/pgxs_debian_control.mk
+  - sudo cp -f pgxs_debian_control.mk /usr/share/postgresql-common/pgxs_debian_control.mk
 before_script:
-- make clean
+  - make clean
 script:
-- make deb
+  - make deb
 deploy:
-- provider: packagecloud
-  dist: ubuntu/$DIST
-  package_glob: build/*.deb
-  username: heroku
-  repository: dod
-  token:
-    secure: Ts66jfdhEZ0fw3LqXrYG/lwDAsi0ptiyYWGHMR8tSYaR/EB1QVStySG9/IcbJ8NkNEyq/ywykp5f5Naug75nwvYZCfRfKeUeZrllkFy0LzMHtQx2lw+yM6CVs7a/yuFKZeVgZcT2F2ktpwGPNvcY1HP/2d2zeIdTHB/rucYymfAsen0ylt7n1Z41p6WYGnaTYr6e4KgUB2FE4xzB7PZ99IXnbGtSl15wiI5rOw+Kt3KVyRIfr/MdvGtZoDVpthtiorWG4zMDjj7uo8NqIHMUtzE4LeSQukCO7S0GlS8timYCJ5VIBUY1Kr0Me44Rr4ip1vBdZ0PMit08PR9t8/VkKNtmvGRQW17Yw/ULmC5a6ao+LwYVzTkDQVerKDpMJMxvsgpV+sUwZx/PejjlICbWiickXc8vMtRfGogn0+oM0LPx8OIjY9qfud/aad0Xoa1/t4b+bVZAMUS7i3K2ffDN4/6gMww2x3LTekuijBWmm/X+RRlt9B9rrcqlSt0W/3OJCtsVIR0eQ7amGfcpfP2PYf22LSjL/rZo4lglqOjFD+k9zR7DhtbJyYtjabGDoMKETJ69ho1OIs5vXvCuqJ1zxRht3NLStHgymbaCCVgiG5cP4pbUp/QpT+JejOQpELGCl5SR3h1MImjctf1daBQiSxkI1Uv1eVRCXqNeFdrcluc=
-  skip_cleanup: true
+  - provider: packagecloud
+    dist: ubuntu/$DIST
+    package_glob: build/*.deb
+    username: heroku
+    repository: dod
+    token:
+      secure: Ts66jfdhEZ0fw3LqXrYG/lwDAsi0ptiyYWGHMR8tSYaR/EB1QVStySG9/IcbJ8NkNEyq/ywykp5f5Naug75nwvYZCfRfKeUeZrllkFy0LzMHtQx2lw+yM6CVs7a/yuFKZeVgZcT2F2ktpwGPNvcY1HP/2d2zeIdTHB/rucYymfAsen0ylt7n1Z41p6WYGnaTYr6e4KgUB2FE4xzB7PZ99IXnbGtSl15wiI5rOw+Kt3KVyRIfr/MdvGtZoDVpthtiorWG4zMDjj7uo8NqIHMUtzE4LeSQukCO7S0GlS8timYCJ5VIBUY1Kr0Me44Rr4ip1vBdZ0PMit08PR9t8/VkKNtmvGRQW17Yw/ULmC5a6ao+LwYVzTkDQVerKDpMJMxvsgpV+sUwZx/PejjlICbWiickXc8vMtRfGogn0+oM0LPx8OIjY9qfud/aad0Xoa1/t4b+bVZAMUS7i3K2ffDN4/6gMww2x3LTekuijBWmm/X+RRlt9B9rrcqlSt0W/3OJCtsVIR0eQ7amGfcpfP2PYf22LSjL/rZo4lglqOjFD+k9zR7DhtbJyYtjabGDoMKETJ69ho1OIs5vXvCuqJ1zxRht3NLStHgymbaCCVgiG5cP4pbUp/QpT+JejOQpELGCl5SR3h1MImjctf1daBQiSxkI1Uv1eVRCXqNeFdrcluc=
+    skip_cleanup: true
 notifications:
   email: false

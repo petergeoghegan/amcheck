@@ -1,3 +1,15 @@
+amcheck (0.2-1) unstable; urgency=low
+
+  * Support for PostgreSQL 9.6
+
+  * Reduction in verbosity of diagnostic messages
+
+  * Bugfix:  Omit right block in cross-page check diagnostic message
+
+  * Travis support
+
+ -- Peter Geoghegan <pg@bowt.ie>  Thu, 13 Oct 2016 14:21:49 -0700
+
 amcheck (0.1-1) unstable; urgency=low
 
   * Initial release

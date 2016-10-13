@@ -6,7 +6,7 @@ Author: Peter Geoghegan [`<pg@bowt.ie>`](mailto:pg@bowt.ie)
 
 License: <a href="https://opensource.org/licenses/postgresql">PostgreSQL license</a>
 
-Minimum supported version: PostgreSQL 9.4
+Supported versions: PostgreSQL 9.4, PostgreSQL 9.5, PostgreSQL 9.6
 
 ## Overview
 
@@ -45,7 +45,7 @@ operator class support functions.
 
 `amcheck` is proposed as a contrib extension for PostgreSQL 10, scheduled for
 release in 2017.  This externally maintained version of the extension exists to
-target earlier versions of PostgreSQL (PostgreSQL 9.4+).
+target earlier versions of PostgreSQL (PostgreSQL 9.4 - PostgreSQL 9.6).
 
 ### Bugs
 

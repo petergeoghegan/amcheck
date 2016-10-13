@@ -1,11 +1,11 @@
-short_ver = 0.1
+short_ver = 0.2
 long_ver = $(shell (git describe --tags --long '--match=v*' 2>/dev/null || echo $(short_ver)-0-unknown) | cut -c2-)
 
 MODULE_big = amcheck
 OBJS       = amcheck.o $(WIN32RES)
 
 EXTENSION  = amcheck
-DATA       = amcheck--0.1.sql
+DATA       = amcheck--0.2.sql
 PGFILEDESC = "amcheck - verify the logical consistency of indexes"
 DOCS       = README.md
 REGRESS    = install_amcheck extern_sort_bytea \

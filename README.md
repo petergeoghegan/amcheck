@@ -1,6 +1,6 @@
 # amcheck: Verify the logical consistency of PostgreSQL B-Tree indexes
 
-Current version: 0.1
+Current version: 0.2
 
 Author: Peter Geoghegan [`<pg@bowt.ie>`](mailto:pg@bowt.ie)
 
@@ -66,8 +66,8 @@ If you are using a packaged PostgreSQL build and have `pg_config` available
 (and in your OS user's $PATH), the procedure is as follows:
 
 ```shell
-tar xvzf amcheck-0.1.tar.gz
-cd amcheck-0.1
+tar xvzf amcheck-0.2.tar.gz
+cd amcheck-0.2
 make
 make install
 ```

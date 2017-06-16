@@ -1,3 +1,11 @@
+amcheck (0.3-1) unstable; urgency=low
+
+  * Tweaks to some diagnostic messages
+
+  * Detect disagreement between parent/child B-Tree level
+
+ -- Peter Geoghegan <pg@bowt.ie>  Fri, 16 June 2017 17:31:41 -0700
+
 amcheck (0.2-1) unstable; urgency=low
 
   * Support for PostgreSQL 9.6

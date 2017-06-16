@@ -1,6 +1,6 @@
 # amcheck: Verify the logical consistency of PostgreSQL B-Tree indexes
 
-Current version: 0.2
+Current version: 0.3
 
 Author: Peter Geoghegan [`<pg@bowt.ie>`](mailto:pg@bowt.ie)
 
@@ -43,17 +43,15 @@ operator class support functions.
 
 ### Project background
 
-`amcheck` is proposed as a contrib extension for PostgreSQL 10, scheduled for
-release in 2017.  This externally maintained version of the extension exists to
-target earlier versions of PostgreSQL (PostgreSQL 9.4 - PostgreSQL 9.6).
+`amcheck` is a contrib extension for PostgreSQL 10.  This externally maintained
+version of the extension exists to target earlier versions of PostgreSQL
+(PostgreSQL 9.4 - PostgreSQL 9.6).
 
 ### Bugs
 
 Report bugs using the <a
 href="https://github.com/petergeoghegan/amcheck/issues">Github issue
-tracker</a>.  Feature requests will not accepted, since `amcheck` is targeted
-for future inclusion into PostgreSQL as a contrib module (however, `amcheck`
-may in the future support building packages on additional platforms).
+tracker</a>.
 
 ## Installation
 
@@ -66,8 +64,8 @@ If you are using a packaged PostgreSQL build and have `pg_config` available
 (and in your OS user's $PATH), the procedure is as follows:
 
 ```shell
-tar xvzf amcheck-0.2.tar.gz
-cd amcheck-0.2
+tar xvzf amcheck-0.3.tar.gz
+cd amcheck-0.3
 make
 make install
 ```

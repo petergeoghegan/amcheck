@@ -1,12 +1,12 @@
-short_ver = 0.2
+short_ver = 0.3
 long_ver = $(shell (git describe --tags --long '--match=v*' 2>/dev/null || echo $(short_ver)-0-unknown) | cut -c2-)
 
 MODULE_big = amcheck
-OBJS       = amcheck.o $(WIN32RES)
+OBJS       = verify_nbtree.o $(WIN32RES)
 
 EXTENSION  = amcheck
-DATA       = amcheck--0.2.sql
-PGFILEDESC = "amcheck - verify the logical consistency of indexes"
+DATA       = amcheck--0.3.sql
+PGFILEDESC = "amcheck - function for verifying relation integrity"
 DOCS       = README.md
 REGRESS    = install_amcheck extern_sort_bytea \
 	extern_sort_collations extern_sort_numeric

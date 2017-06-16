@@ -1,5 +1,5 @@
 # amcheck extension
 comment = 'verify the logical consistency of indexes'
-default_version = '0.2'
+default_version = '0.3'
 module_pathname = '$libdir/amcheck'
 relocatable = true

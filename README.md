@@ -134,8 +134,6 @@ invariants.  Example usage:
   JOIN pg_class c ON i.indexrelid = c.oid
   JOIN pg_namespace n ON c.relnamespace = n.oid
   WHERE am.amname = 'btree' AND n.nspname = 'pg_catalog'
-  -- Don't check pg_class (bt_index_parent_check() requires this):
-  AND c.relname NOT LIKE 'pg_class%'
   -- Don't check temp tables, which may be from another session:
   AND c.relpersistence != 't'
   -- Function may throw an error when this is omitted:

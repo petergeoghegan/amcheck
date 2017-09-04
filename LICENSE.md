@@ -1,4 +1,6 @@
-Copyright (c) 2016, Peter Geoghegan
+Portions Copyright (c) 2017, Peter Geoghegan
+Portions Copyright (c) 1996-2017, The PostgreSQL Global Development Group
+Portions Copyright (c) 1994, The Regents of the University of California
 
 Permission to use, copy, modify, and distribute this software and its
 documentation for any purpose, without fee, and without a written agreement

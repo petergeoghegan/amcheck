@@ -156,7 +156,7 @@ invariants.  Example usage:
 ```
 
 This example shows a session that performs verification of every catalog index
-in the database "test".  Details of just the 10 largest indexes verified are
+in the database.  Details of just the 10 largest indexes verified are
 displayed.  Since no error is raised, all indexes tested appear to be logically
 consistent.  Naturally, this query could easily be changed to call
 `bt_index_check` for every index in the database where verification is

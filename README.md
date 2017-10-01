@@ -1,6 +1,6 @@
 # amcheck: Verify the logical consistency of PostgreSQL B-Tree indexes
 
-Current version: 0.3
+Current version: 1.0 (`amcheck_next` extension/SQL version: 1)
 
 Author: Peter Geoghegan [`<pg@bowt.ie>`](mailto:pg@bowt.ie)
 
@@ -19,6 +19,14 @@ in production PostgreSQL installations.
 
 See "Using amcheck effectively" below for information about the kinds of
 real-world problems `amcheck` is intended to detect.
+
+### Project background
+
+`amcheck` is a contrib extension for PostgreSQL 10+.  This externally
+maintained version of the extension, `amcheck_next`, exists to target earlier
+versions of PostgreSQL, and to provide extended verification functionality to
+older PostgreSQL versions.  It is safe (though generally not useful) to install
+`amcheck_next` alongside `contrib/amcheck`.
 
 ### Invariants
 
@@ -41,11 +49,6 @@ to guide the scan to a point in the underlying table;  see
 http://www.postgresql.org/docs/current/static/xindex.html for details of
 operator class support functions.
 
-### Project background
-
-`amcheck` is a contrib extension for PostgreSQL 10.  This externally maintained
-version of the extension exists to target earlier versions of PostgreSQL.
-
 ### Bugs
 
 Report bugs using the <a
@@ -63,8 +66,8 @@ If you are using a packaged PostgreSQL build and have `pg_config` available
 (and in your OS user's $PATH), the procedure is as follows:
 
 ```shell
-tar xvzf amcheck-0.3.tar.gz
-cd amcheck-0.3
+tar xvzf amcheck-1.0.tar.gz
+cd amcheck-1.0
 make
 make install
 ```
@@ -89,19 +92,22 @@ sudo dpkg -i ./build/postgresql-9.4-amcheck_*.deb
 
 ### Setting up PostgreSQL
 
-Once `amcheck` is built and installed, it should be created as a PostgreSQL
+Once the module is built and installed, it should be created as a PostgreSQL
 extension in every database that requires it:
 
-`mydb=# CREATE EXTENSION amcheck;`
+`mydb=# CREATE EXTENSION amcheck_next;`
 
 `amcheck` functions may be used only by superusers.
 
+Note that the extension is named `amcheck_next` in order to distinguish it from
+the PostgreSQL contrib extension `amcheck`.
+
 ## Interface
 
-The `amcheck` extension has a simple interface.  `amcheck` consists of just a
-few functions that can be used for verification of a named B-Tree index.  Note
-that currently, no function inspects the structure of the underlying heap
-representation (table).
+The `amcheck_next` extension has a simple interface.  `amcheck_next` consists
+of just a few functions that can be used for verification of a named B-Tree
+index.  Note that currently, no function inspects the structure of the
+underlying heap representation (table).
 
 `regclass` function arguments are used by `amcheck` to identify particular
 index relations.  This allows `amcheck` to accept arguments using various
@@ -154,14 +160,13 @@ invariants.  Example usage:
                   | pg_amop_fam_strat_index         |        5
 ```
 
-This example shows a session that performs verification of every catalog index
-in the database.  Details of just the 10 largest indexes verified are
-displayed.  Since no error is raised, all indexes tested appear to be logically
-consistent.  Naturally, this query could easily be changed to call
-`bt_index_check` for every index in the database where verification is
-supported.  An `AccessShareLock` is acquired on the target index by
-`bt_index_check`.  This lock mode is the same lock mode acquired on relations
-by simple `SELECT` statements.
+This example shows a session that performs verification of catalog indexes.
+Since no error is raised, all indexes tested appear to be logically consistent.
+Naturally, this query could easily be changed to call `bt_index_check` for
+every index in the database where verification is supported.  An
+`AccessShareLock` is acquired on the target index by `bt_index_check`.  This
+lock mode is the same lock mode acquired on relations by simple `SELECT`
+statements.
 
 `bt_index_check` does not verify invariants that span child/parent
 relationships, nor does it verify that the target index is consistent with its

@@ -1,7 +1,6 @@
 # Only support versions with robust approach to B-Tree page deletion and
 # concurrent page splits
-#
-# PostgreSQL 10 is not supported, if only because its contrib extension has a conflicting extension name.
 9.4
 9.5
 9.6
+10

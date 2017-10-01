@@ -1,10 +1,25 @@
+amcheck (1.0-1) stable; urgency=medium
+
+  * Correct 0.3-1 date string in changelog
+
+  * Normalize copyright assignment, and make debian copyright file consistent
+    with LICENSE.md
+
+  * Create extension with the name amcheck_next, to avoid ambiguity.
+
+  * Remove Travis support.
+
+  * Replace tests with upstream contrib/amcheck tests.
+
+ -- Peter Geoghegan <pg@bowt.ie>  Sat, 07 Oct 2017 09:28:38 -0700
+
 amcheck (0.3-1) unstable; urgency=low
 
   * Tweaks to some diagnostic messages
 
   * Detect disagreement between parent/child B-Tree level
 
- -- Peter Geoghegan <pg@bowt.ie>  Fri, 16 June 2017 17:31:41 -0700
+ -- Peter Geoghegan <pg@bowt.ie>  Fri, 16 Jun 2017 17:31:41 -0700
 
 amcheck (0.2-1) unstable; urgency=low
 

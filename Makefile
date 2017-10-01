@@ -1,15 +1,14 @@
-short_ver = 0.3
+short_ver = 1
 long_ver = $(shell (git describe --tags --long '--match=v*' 2>/dev/null || echo $(short_ver)-0-unknown) | cut -c2-)
 
-MODULE_big = amcheck
+MODULE_big = amcheck_next
 OBJS       = verify_nbtree.o $(WIN32RES)
 
-EXTENSION  = amcheck
-DATA       = amcheck--0.3.sql
-PGFILEDESC = "amcheck - function for verifying relation integrity"
+EXTENSION  = amcheck_next
+DATA       = amcheck_next--1.sql
+PGFILEDESC = "amcheck_next - functions for verifying relation integrity"
 DOCS       = README.md
-REGRESS    = install_amcheck extern_sort_bytea \
-	extern_sort_collations extern_sort_numeric
+REGRESS    = install_amcheck_next check_btree
 
 PG_CONFIG = pg_config
 PGXS = $(shell $(PG_CONFIG) --pgxs)
@@ -22,4 +21,4 @@ deb:
 	rsync -Ca --exclude=build/* ./ $(DEBUILD_ROOT)/
 	cd $(DEBUILD_ROOT) && make -f debian/rules orig
 	cd $(DEBUILD_ROOT) && debuild -us -uc -sa
-	cp -a /tmp/amcheck_* /tmp/postgresql-9.* build/
+	cp -a /tmp/amcheck_* /tmp/postgresql-[91]* build/

@@ -39,3 +39,12 @@ Description: PostgreSQL extension that verifies indexes
  during a call to these verification functions, no logical inconsistency was
  detected.  This is useful as a general smoke test to detect corruption.
 
+Package: postgresql-10-amcheck
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, postgresql-10
+Description: PostgreSQL extension that verifies indexes
+ This extension verifies the logical consistency of PostgreSQL B-Tree indexes.
+ The extension consists of SQL-callable functions.  When no error is raised
+ during a call to these verification functions, no logical inconsistency was
+ detected.  This is useful as a general smoke test to detect corruption.

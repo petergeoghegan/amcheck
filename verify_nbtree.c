@@ -14,7 +14,7 @@
  * Portions Copyright (c) 1994, The Regents of the University of California
  *
  * IDENTIFICATION
- *	  contrib/amcheck/verify_nbtree.c
+ *	  amcheck_next/verify_nbtree.c
  *
  *-------------------------------------------------------------------------
  */
@@ -91,8 +91,8 @@ typedef struct BtreeLevel
 	bool		istruerootlevel;
 } BtreeLevel;
 
-PG_FUNCTION_INFO_V1(bt_index_check);
-PG_FUNCTION_INFO_V1(bt_index_parent_check);
+PG_FUNCTION_INFO_V1(bt_index_check_next);
+PG_FUNCTION_INFO_V1(bt_index_parent_check_next);
 
 static void bt_index_check_internal(Oid indrelid, bool parentcheck);
 static inline void btree_index_checkable(Relation rel);
@@ -120,13 +120,16 @@ static Page palloc_btree_page(BtreeCheckState *state, BlockNumber blocknum);
 /*
  * bt_index_check(index regclass)
  *
+ * Note that the symbol name is appended with "_next", to avoid symbol clashes
+ * with contrib/amcheck.
+ *
  * Verify integrity of B-Tree index.
  *
  * Acquires AccessShareLock on heap & index relations.  Does not consider
  * invariants that exist between parent/child pages.
  */
 Datum
-bt_index_check(PG_FUNCTION_ARGS)
+bt_index_check_next(PG_FUNCTION_ARGS)
 {
 	Oid			indrelid = PG_GETARG_OID(0);
 
@@ -138,13 +141,16 @@ bt_index_check(PG_FUNCTION_ARGS)
 /*
  * bt_index_parent_check(index regclass)
  *
+ * Note that the symbol name is appended with "_next", to avoid symbol clashes
+ * with contrib/amcheck.
+ *
  * Verify integrity of B-Tree index.
  *
  * Acquires ShareLock on heap & index relations.  Verifies that downlinks in
  * parent pages are valid lower bounds on child pages.
  */
 Datum
-bt_index_parent_check(PG_FUNCTION_ARGS)
+bt_index_parent_check_next(PG_FUNCTION_ARGS)
 {
 	Oid			indrelid = PG_GETARG_OID(0);
 
@@ -281,6 +287,12 @@ bt_check_every_level(Relation rel, bool readonly)
 	BTMetaPageData *metad;
 	uint32		previouslevel;
 	BtreeLevel	current;
+
+	/*
+	 * RecentGlobalXmin assertion matches index_getnext_tid().  See note on
+	 * RecentGlobalXmin/B-Tree page deletion.
+	 */
+	Assert(TransactionIdIsValid(RecentGlobalXmin));
 
 	/*
 	 * Initialize state for entire verification operation

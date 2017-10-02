@@ -242,8 +242,8 @@ btree_index_checkable(Relation rel)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("cannot access temporary tables of other sessions"),
-			 errdetail("Index \"%s\" is associated with temporary relation.",
-					   RelationGetRelationName(rel))));
+				 errdetail("Index \"%s\" is associated with temporary relation.",
+						   RelationGetRelationName(rel))));
 
 	if (!IndexIsValid(rel->rd_index))
 		ereport(ERROR,
@@ -407,12 +407,12 @@ bt_check_level_from_leftmost(BtreeCheckState *state, BtreeLevel level)
 				ereport(ERROR,
 						(errcode(ERRCODE_INDEX_CORRUPTED),
 						 errmsg("block %u fell off the end of index \"%s\"",
-							 current, RelationGetRelationName(state->rel))));
+								current, RelationGetRelationName(state->rel))));
 			else
 				ereport(DEBUG1,
 						(errcode(ERRCODE_NO_DATA),
 						 errmsg("block %u of index \"%s\" ignored",
-							 current, RelationGetRelationName(state->rel))));
+								current, RelationGetRelationName(state->rel))));
 			goto nextpage;
 		}
 		else if (nextleveldown.leftmost == InvalidBlockNumber)
@@ -429,14 +429,14 @@ bt_check_level_from_leftmost(BtreeCheckState *state, BtreeLevel level)
 				if (!P_LEFTMOST(opaque))
 					ereport(ERROR,
 							(errcode(ERRCODE_INDEX_CORRUPTED),
-						   errmsg("block %u is not leftmost in index \"%s\"",
-							 current, RelationGetRelationName(state->rel))));
+							 errmsg("block %u is not leftmost in index \"%s\"",
+									current, RelationGetRelationName(state->rel))));
 
 				if (level.istruerootlevel && !P_ISROOT(opaque))
 					ereport(ERROR,
 							(errcode(ERRCODE_INDEX_CORRUPTED),
-						  errmsg("block %u is not true root in index \"%s\"",
-							 current, RelationGetRelationName(state->rel))));
+							 errmsg("block %u is not true root in index \"%s\"",
+									current, RelationGetRelationName(state->rel))));
 			}
 
 			/*
@@ -484,7 +484,7 @@ bt_check_level_from_leftmost(BtreeCheckState *state, BtreeLevel level)
 					 errmsg("left link/right link pair in index \"%s\" not in agreement",
 							RelationGetRelationName(state->rel)),
 					 errdetail_internal("Block=%u left block=%u left link from block=%u.",
-								  current, leftcurrent, opaque->btpo_prev)));
+										current, leftcurrent, opaque->btpo_prev)));
 
 		/* Check level, which must be valid for non-ignorable page */
 		if (level.level != opaque->btpo.level)
@@ -493,7 +493,7 @@ bt_check_level_from_leftmost(BtreeCheckState *state, BtreeLevel level)
 					 errmsg("leftmost down link for level points to block in index \"%s\" whose level is not one level down",
 							RelationGetRelationName(state->rel)),
 					 errdetail_internal("Block pointed to=%u expected level=%u level in pointed to block=%u.",
-								 current, level.level, opaque->btpo.level)));
+										current, level.level, opaque->btpo.level)));
 
 		/* Verify invariants for page -- all important checks occur here */
 		bt_target_page_check(state);
@@ -504,8 +504,8 @@ nextpage:
 		if (current == leftcurrent || current == opaque->btpo_prev)
 			ereport(ERROR,
 					(errcode(ERRCODE_INDEX_CORRUPTED),
-			  errmsg("circular link chain found in block %u of index \"%s\"",
-					 current, RelationGetRelationName(state->rel))));
+					 errmsg("circular link chain found in block %u of index \"%s\"",
+							current, RelationGetRelationName(state->rel))));
 
 		leftcurrent = current;
 		current = opaque->btpo_next;
@@ -661,17 +661,17 @@ bt_target_page_check(BtreeCheckState *state)
 					(errcode(ERRCODE_INDEX_CORRUPTED),
 					 errmsg("item order invariant violated for index \"%s\"",
 							RelationGetRelationName(state->rel)),
-			   errdetail_internal("Lower index tid=%s (points to %s tid=%s) "
-								  "higher index tid=%s (points to %s tid=%s) "
-								  "page lsn=%X/%X.",
-								  itid,
-								  P_ISLEAF(topaque) ? "heap" : "index",
-								  htid,
-								  nitid,
-								  P_ISLEAF(topaque) ? "heap" : "index",
-								  nhtid,
-								  (uint32) (state->targetlsn >> 32),
-								  (uint32) state->targetlsn)));
+					 errdetail_internal("Lower index tid=%s (points to %s tid=%s) "
+										"higher index tid=%s (points to %s tid=%s) "
+										"page lsn=%X/%X.",
+										itid,
+										P_ISLEAF(topaque) ? "heap" : "index",
+										htid,
+										nitid,
+										P_ISLEAF(topaque) ? "heap" : "index",
+										nhtid,
+										(uint32) (state->targetlsn >> 32),
+										(uint32) state->targetlsn)));
 		}
 
 		/*
@@ -820,7 +820,7 @@ bt_right_page_check_scankey(BtreeCheckState *state)
 		ereport(DEBUG1,
 				(errcode(ERRCODE_NO_DATA),
 				 errmsg("level %u leftmost page of index \"%s\" was found deleted or half dead",
-					opaque->btpo.level, RelationGetRelationName(state->rel)),
+						opaque->btpo.level, RelationGetRelationName(state->rel)),
 				 errdetail_internal("Deleted page found when building scankey from right sibling.")));
 
 		/* Be slightly more pro-active in freeing this memory, just in case */
@@ -1049,7 +1049,7 @@ bt_downlink_check(BtreeCheckState *state, BlockNumber childblock,
 					 errmsg("down-link lower bound invariant violated for index \"%s\"",
 							RelationGetRelationName(state->rel)),
 					 errdetail_internal("Parent block=%u child index tid=(%u,%u) parent page lsn=%X/%X.",
-									  state->targetblock, childblock, offset,
+										state->targetblock, childblock, offset,
 										(uint32) (state->targetlsn >> 32),
 										(uint32) state->targetlsn)));
 	}
@@ -1191,7 +1191,7 @@ palloc_btree_page(BtreeCheckState *state, BlockNumber blocknum)
 
 	opaque = (BTPageOpaque) PageGetSpecialPointer(page);
 
-	if (opaque->btpo_flags & BTP_META && blocknum != BTREE_METAPAGE)
+	if (P_ISMETA(opaque) && blocknum != BTREE_METAPAGE)
 		ereport(ERROR,
 				(errcode(ERRCODE_INDEX_CORRUPTED),
 				 errmsg("invalid meta page found at block %u in index \"%s\"",
@@ -1202,7 +1202,7 @@ palloc_btree_page(BtreeCheckState *state, BlockNumber blocknum)
 	{
 		BTMetaPageData *metad = BTPageGetMeta(page);
 
-		if (!(opaque->btpo_flags & BTP_META) ||
+		if (!P_ISMETA(opaque) ||
 			metad->btm_magic != BTREE_MAGIC)
 			ereport(ERROR,
 					(errcode(ERRCODE_INDEX_CORRUPTED),
@@ -1224,21 +1224,21 @@ palloc_btree_page(BtreeCheckState *state, BlockNumber blocknum)
 	if (P_ISLEAF(opaque) && !P_ISDELETED(opaque) && opaque->btpo.level != 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_INDEX_CORRUPTED),
-			errmsg("invalid leaf page level %u for block %u in index \"%s\"",
-		opaque->btpo.level, blocknum, RelationGetRelationName(state->rel))));
+				 errmsg("invalid leaf page level %u for block %u in index \"%s\"",
+						opaque->btpo.level, blocknum, RelationGetRelationName(state->rel))));
 
 	if (blocknum != BTREE_METAPAGE && !P_ISLEAF(opaque) &&
 		!P_ISDELETED(opaque) && opaque->btpo.level == 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_INDEX_CORRUPTED),
-		 errmsg("invalid internal page level 0 for block %u in index \"%s\"",
-				opaque->btpo.level, RelationGetRelationName(state->rel))));
+				 errmsg("invalid internal page level 0 for block %u in index \"%s\"",
+						opaque->btpo.level, RelationGetRelationName(state->rel))));
 
 	if (!P_ISLEAF(opaque) && P_HAS_GARBAGE(opaque))
 		ereport(ERROR,
 				(errcode(ERRCODE_INDEX_CORRUPTED),
-		   errmsg("internal page block %u in index \"%s\" has garbage items",
-				  blocknum, RelationGetRelationName(state->rel))));
+				 errmsg("internal page block %u in index \"%s\" has garbage items",
+						blocknum, RelationGetRelationName(state->rel))));
 
 	return page;
 }

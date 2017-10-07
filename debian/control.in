@@ -2,7 +2,7 @@ Source: amcheck
 Priority: extra
 Maintainer: Peter Geoghegan <pg@bowt.ie>
 Build-Depends: debhelper (>= 9), postgresql-server-dev-all (>= 171~)
-Standards-Version: 3.9.6
+Standards-Version: 4.1.1
 Section: database
 Homepage: https://github.com/petergeoghegan/amcheck
 Vcs-Git: https://github.com/petergeoghegan/amcheck.git

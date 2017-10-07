@@ -1,4 +1,4 @@
-amcheck (1.0-1) stable; urgency=medium
+amcheck (1.0-1) unstable; urgency=medium
 
   * Correct 0.3-1 date string in changelog
 

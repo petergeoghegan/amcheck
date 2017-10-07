@@ -1202,7 +1202,7 @@ palloc_btree_page(BtreeCheckState *state, BlockNumber blocknum)
 	{
 		BTMetaPageData *metad = BTPageGetMeta(page);
 
-		if (!P_ISMETA(opaque) ||
+		if (!(opaque->btpo_flags & BTP_META) ||
 			metad->btm_magic != BTREE_MAGIC)
 			ereport(ERROR,
 					(errcode(ERRCODE_INDEX_CORRUPTED),

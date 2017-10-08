@@ -1,11 +1,11 @@
-short_ver = 1
+short_ver = 2
 long_ver = $(shell (git describe --tags --long '--match=v*' 2>/dev/null || echo $(short_ver)-0-unknown) | cut -c2-)
 
 MODULE_big = amcheck_next
-OBJS       = verify_nbtree.o $(WIN32RES)
+OBJS       = bloomfilter.o verify_nbtree.o $(WIN32RES)
 
 EXTENSION  = amcheck_next
-DATA       = amcheck_next--1.sql
+DATA       = amcheck_next--1.sql amcheck_next--2.sql amcheck_next--1--2.sql
 PGFILEDESC = "amcheck_next - functions for verifying relation integrity"
 DOCS       = README.md
 REGRESS    = install_amcheck_next check_btree

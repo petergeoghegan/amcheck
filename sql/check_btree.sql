@@ -19,8 +19,8 @@ RESET ROLE;
 -- we, intentionally, don't check relation permissions - it's useful
 -- to run this cluster-wide with a restricted account, and as tested
 -- above explicit permission has to be granted for that.
-GRANT EXECUTE ON FUNCTION bt_index_check(regclass) TO bttest_role;
-GRANT EXECUTE ON FUNCTION bt_index_parent_check(regclass) TO bttest_role;
+GRANT EXECUTE ON FUNCTION bt_index_check(regclass, boolean) TO bttest_role;
+GRANT EXECUTE ON FUNCTION bt_index_parent_check(regclass, boolean) TO bttest_role;
 SET ROLE bttest_role;
 SELECT bt_index_check('bttest_a_idx');
 SELECT bt_index_parent_check('bttest_a_idx');
@@ -36,8 +36,9 @@ SELECT bt_index_parent_check(17);
 
 -- normal check outside of xact
 SELECT bt_index_check('bttest_a_idx');
--- more expansive test
-SELECT bt_index_parent_check('bttest_b_idx');
+-- more expansive tests
+SELECT bt_index_check('bttest_a_idx', true);
+SELECT bt_index_parent_check('bttest_b_idx', true);
 
 BEGIN;
 SELECT bt_index_check('bttest_a_idx');

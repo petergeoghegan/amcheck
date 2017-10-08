@@ -1,3 +1,11 @@
+amcheck (1.1-1) unstable; urgency=medium
+
+  * Add heapallindexed verification
+
+  * Documentation updates
+
+ -- Peter Geoghegan <pg@bowt.ie>  Thu, 19 Oct 2017 12:11:59 -0700
+
 amcheck (1.0-1) unstable; urgency=medium
 
   * Correct 0.3-1 date string in changelog

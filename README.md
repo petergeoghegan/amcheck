@@ -1,6 +1,6 @@
 # amcheck/amcheck_next: functions for verifying PostgreSQL relation integrity
 
-Current version: 1.0 (`amcheck_next` extension/SQL version: 1)
+Current version: 1.1 (`amcheck_next` extension/SQL version: 2)
 
 Author: Peter Geoghegan [`<pg@bowt.ie>`](mailto:pg@bowt.ie)
 
@@ -46,13 +46,12 @@ It is safe (though generally not useful) to install `amcheck_next` alongside
 `amcheck` provides functions that specifically verify various *invariants* in
 the structure of the representation of particular indexes.  The correctness of
 the access method functions behind index scans and other important operations
-is predicated on these invariants always holding.  For example, certain
-functions verify, among other things, that all B-Tree pages have items in
-"logical", sorted order (e.g., for B-Tree indexes on text, index tuples should
-be in collated lexical order).  If that particular invariant somehow fails to
-hold, we can expect binary searches on the affected page to incorrectly guide
-index scans, resulting in wrong answers to SQL queries.  Problems like this can
-be very subtle, and might otherwise remain undetected.
+relies on these invariants always holding.  For example, certain functions
+verify, among other things, that all B-Tree pages have items in "logical",
+sorted order (e.g., for B-Tree indexes on text, index tuples should be in
+collated lexical order).  If that particular invariant somehow fails to hold,
+we can expect binary searches on the affected page to incorrectly guide index
+scans, resulting in wrong answers to SQL queries.
 
 Verification is performed using the same procedures as those used by index
 scans themselves, which may be user-defined operator class code.  For example,
@@ -118,8 +117,8 @@ If you are using a packaged PostgreSQL build and have `pg_config` available
 (and in your OS user's $PATH), the procedure is as follows:
 
 ```shell
-tar xvzf amcheck-1.0.tar.gz
-cd amcheck-1.0
+tar xvzf amcheck-1.1.tar.gz
+cd amcheck-1.1
 make
 make install
 ```
@@ -164,10 +163,10 @@ SQL calling conventions:
 
 ```sql
   -- Use string literal regclass input:
-  SELECT bt_index_check('pg_database_oid_index');
+  SELECT bt_index_check('pg_database_oid_index', true);
   -- Use oid regclass input (both perform equivalent verification):
-  SELECT bt_index_check(2672);
-  SELECT bt_index_check(oid) FROM pg_class
+  SELECT bt_index_check(2672, false);
+  SELECT bt_index_check(oid, false) FROM pg_class
   WHERE relname = 'pg_database_oid_index';
 ```
 
@@ -175,13 +174,15 @@ See the <a
 href="http://www.postgresql.org/docs/current/static/datatype-oid.html">PostgreSQL
 documentation on Object identifier types</a> for more information.
 
-### `bt_index_check(index regclass) returns void`
+### `bt_index_check(index regclass, heapallindexed boolean DEFAULT false) returns void`
 
 `bt_index_check` tests that its target, a B-Tree index, respects a variety of
 invariants.  Example usage:
 
 ```sql
-  SELECT bt_index_check(c.oid), c.relname, c.relpages
+  SELECT bt_index_check(index => c.oid, heapallindexed => i.indisunique),
+          c.relname,
+          c.relpages
   FROM pg_index i
   JOIN pg_opclass op ON i.indclass[0] = op.oid
   JOIN pg_am am ON op.opcmethod = am.oid
@@ -210,33 +211,36 @@ invariants.  Example usage:
 ```
 
 This example shows a session that performs verification of catalog indexes.
-Since no error is raised, all indexes tested appear to be logically consistent.
-Naturally, this query could easily be changed to call `bt_index_check` for
-every index in the database where verification is supported.  An
-`AccessShareLock` is acquired on the target index by `bt_index_check`.  This
-lock mode is the same lock mode acquired on relations by simple `SELECT`
-statements.
+Verification of the presence of heap tuples as index tuples is requested for
+unique indexes only.  Since no error is raised, all indexes tested appear to be
+logically consistent.  Naturally, this query could easily be changed to call
+`bt_index_check` for every index in the database where verification is
+supported.  An `AccessShareLock` is acquired on the target index and heap
+relation by `bt_index_check`.  This lock mode is the same lock mode acquired on
+relations by simple `SELECT` statements.
 
 `bt_index_check` does not verify invariants that span child/parent
-relationships, nor does it verify that the target index is consistent with its
-heap relation.  When a routine, lightweight test for corruption is required in
-a live production environment, using `bt_index_check` often provides the best
-trade-off between thoroughness of verification and limiting the impact on
-application performance and availability.
+relationships, but will verify the presence of all heap tuples as index tuples
+within the index when `heapallindexed` is `true`.  When a routine, lightweight
+test for corruption is required in a live production environment, using
+`bt_index_check` often provides the best trade-off between thoroughness of
+verification and limiting the impact on application performance and
+availability.
 
-### `bt_index_parent_check(index regclass) returns void`
+### `bt_index_parent_check(index regclass, heapallindexed boolean DEFAULT false) returns void`
 
 `bt_index_parent_check` tests that its target, a B-Tree index, respects a
-variety of invariants.  The checks performed by `bt_index_parent_check` are a
-superset of the checks performed by `bt_index_check`.  `bt_index_parent_check`
-can be thought of as a more thorough variant of `bt_index_check`: unlike
-`bt_index_check`, `bt_index_parent_check` also checks invariants that span
-parent/child relationships.  However, it does not verify that the target index
-is consistent with its heap relation.  `bt_index_parent_check` follows the
-general convention of raising an error if it finds a logical inconsistency or
-other problem.
+variety of invariants.  Optionally, when the `heapallindexed` argument is
+`true`, the function verifies the presence of all heap tuples that should be
+found within the index. The checks performed by `bt_index_parent_check` are a
+superset of the checks performed by `bt_index_check` when called with the same
+options.  `bt_index_parent_check` can be thought of as a more thorough variant
+of `bt_index_check`: unlike `bt_index_check`, `bt_index_parent_check` also
+checks invariants that span parent/child relationships.
+`bt_index_parent_check` follows the general convention of raising an error if
+it finds a logical inconsistency or other problem.
 
-An `ExclusiveLock` is required on the target index by bt_index_parent_check (a
+A `ShareLock` is required on the target index by `bt_index_parent_check` (a
 `ShareLock` is also acquired on the heap relation).  These locks prevent
 concurrent data modification from `INSERT`, `UPDATE`, and `DELETE` commands.
 The locks also prevent the underlying relation from being concurrently
@@ -251,6 +255,54 @@ B-Tree operator class used by the index that is checked, or, hypothetically,
 undiscovered bugs in the underlying B-Tree index access method code.  Note that
 `bt_index_parent_check` cannot be called when Hot Standby is enabled (i.e., on
 read-only physical replicas), unlike `bt_index_check`.
+
+## Optional `heapallindexed` verification
+
+When the `heapallindexed` argument to verification functions is `true`, an
+additional phase of verification is performed against the table associated with
+the target index relation.  This consists of a "dummy" `CREATE INDEX`
+operation, which checks for the presence of all would-be new index tuples
+against a temporary, in-memory summarizing structure (this is built when needed
+during the first, standard phase).  The summarizing structure "fingerprints"
+every tuple found within the target index.  The high level principle behind
+`heapallindexed` verification is that a new index that is equivalent to the
+existing, target index must only have entries that can be found in the existing
+structure.
+
+The additional `heapallindexed` phase adds significant overhead: verification
+will typically take several times longer than it would with only the standard
+consistency checking of the target index's structure.  However, verification
+will still take significantly less time than an actual `CREATE INDEX`.  There
+is no change to the relation-level locks acquired when `heapallindexed`
+verification is performed.  The summarizing structure is bound in size by
+`maintenance_work_mem`.  In order to ensure that there is no more than a 2%
+probability of failure to detect the absence of any particular index tuple,
+approximately 2 bytes of memory are needed per index tuple.  As less memory is
+made available per index tuple, the probability of missing an inconsistency
+increases.  This is considered an acceptable trade-off, since it limits the
+overhead of verification very significantly, while only slightly reducing the
+probability of detecting a problem, especially for installations where
+verification is treated as a routine maintenance task.
+
+With many databases, even the default `maintenance_work_mem` setting of `64MB`
+is sufficient to have less than a 2% probability of overlooking any single
+absent or corrupt tuple.  This will be the case when there are no indexes with
+more than about 30 million distinct index tuples, regardless of the overall
+size of any index, the total number of indexes, or anything else.  False
+positive candidate tuple membership tests within the summarizing structure
+occur at random, and are very unlikely to be the same for repeat verification
+operations.  Furthermore, within a single verification operation, each missing
+or malformed index tuple independently has the same chance of being detected.
+If there is any inconsistency at all, it isn't particularly likely to be
+limited to a single tuple.  All of these factors favor accepting a limited per
+operation per tuple probability of missing corruption, in order to enable
+performing more thorough index to heap verification more frequently (practical
+concerns about the overhead of verification are likely to limit the frequency
+of verification).  In aggregate, the probability of detecting a hardware fault
+or software defect actually *increases* significantly with this strategy in
+most real world cases.  Moreover, frequent verification allows problems to be
+caught earlier on average, which helps to limit the overall impact of
+corruption, and often simplifies root cause analysis.
 
 ## Using amcheck effectively
 
@@ -280,14 +332,21 @@ ordered using an affected collation, simply because *indexed* values might
 happen to have the same absolute ordering regardless of the behavioral
 inconsistency.
 
+* Structural inconsistencies between indexes and the heap relations that are
+  indexed (when `heapallindexed` verification is performed).
+
+There is no cross-checking of indexes against their heap relation during normal
+operation.  Symptoms of heap corruption can be very subtle.
+
 * Corruption caused by hypothetical undiscovered bugs in the underlying
-  PostgreSQL access method code or sort code.
+  PostgreSQL access method code, sort code, or transaction management code.
 
 Automatic verification of the structural integrity of indexes plays a role in
 the general testing of new or proposed PostgreSQL features that could plausibly
-allow a logical inconsistency to be introduced.  One obvious testing strategy
-is to call `amcheck` functions continuously when running the standard
-regression tests.
+allow a logical inconsistency to be introduced.  Verification of table
+structure and associated visibility and transaction status information plays a
+similar role.  One obvious testing strategy is to call `amcheck` functions
+continuously when running the standard regression tests.
 
 * Filesystem or storage subsystem faults where checksums happen to simply not
   be enabled.
@@ -308,6 +367,10 @@ you will operate using RAM that uses industry standard Error Correcting Codes
 single-bit errors, and should not be assumed to provide *absolute* protection
 against failures that result in memory corruption.
 
+When `heapallindexed` verification is performed, there is generally a greatly
+increased chance of detecting single-bit errors, since strict binary equality
+is tested, and the indexed attributes within the heap are tested.
+
 ### Overhead
 
 The overhead of calling `bt_index_check` for every index on a live production
@@ -315,6 +378,8 @@ system is roughly comparable to the overhead of vacuuming; like `VACUUM`,
 verification uses a "buffer access strategy", which limits its impact on which
 pages are cached within `shared_buffers`.  A major design goal of `amcheck` is
 to support routine verification of all indexes on busy production systems.
+Note that `heapallindexed` verification *significantly* increases the runtime
+of verification.
 
 No `amcheck` routine will ever modify data, and so no pages will ever be
 "dirtied", which is not the case with `VACUUM`.  On the other hand, `amcheck`
@@ -334,10 +399,9 @@ the contents of B-Tree indexes in sequential order.
 ### Acting on information about corruption
 
 No error concerning corruption raised by `amcheck` should ever be a false
-positive.  In practice, `amcheck` is more likely to find software bugs than
-problems with hardware.  `amcheck` raises errors in the event of conditions
-that, by definition, should never happen.  It seems unlikely that there could
-ever be a useful *general* remediation to problems it detects.
+positive.  `amcheck` raises errors in the event of conditions that, by
+definition, should never happen.  It seems unlikely that there could ever be a
+useful *general* remediation to problems it detects.
 
 In general, an explanation for the root cause of an invariant violation should
 be sought.  The <a

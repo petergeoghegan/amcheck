@@ -1,4 +1,4 @@
-# amcheck: Verify the logical consistency of PostgreSQL B-Tree indexes
+# amcheck/amcheck_next: Verify the logical consistency of PostgreSQL B-Tree indexes
 
 Current version: 1.0 (`amcheck_next` extension/SQL version: 1)
 
@@ -7,6 +7,13 @@ Author: Peter Geoghegan [`<pg@bowt.ie>`](mailto:pg@bowt.ie)
 License: <a href="https://opensource.org/licenses/postgresql">PostgreSQL license</a>
 
 Supported versions: PostgreSQL 9.4+
+
+Note that Microsoft Windows is unsupported,  because most PostgreSQL versions
+lack <a
+href="https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=56018bf2">
+the necessary workaround</a> for <a
+href="https://postgr.es/m/508E4121.10804%40ringerc.id.au">various restrictions
+on dynamic linking</a> that only exist on that platform.
 
 ## Overview
 
@@ -17,16 +24,22 @@ although since in practice the majority of PostgreSQL indexes are B-Tree
 indexes, `amcheck` is likely to be effective as a general corruption smoke-test
 in production PostgreSQL installations.
 
-See "Using amcheck effectively" below for information about the kinds of
-real-world problems `amcheck` is intended to detect.
+See "Using amcheck effectively" for information about the kinds of real-world
+problems `amcheck` is intended to detect.
 
 ### Project background
 
-`amcheck` is a contrib extension for PostgreSQL 10+.  This externally
-maintained version of the extension, `amcheck_next`, exists to target earlier
-versions of PostgreSQL, and to provide extended verification functionality to
-older PostgreSQL versions.  It is safe (though generally not useful) to install
-`amcheck_next` alongside `contrib/amcheck`.
+`amcheck` is a <a
+href="https://www.postgresql.org/docs/current/static/amcheck.html">contrib
+extension module that originally appeared in PostgreSQL 10</a>.  This
+externally maintained version of the extension, which is formally named
+`amcheck_next` to avoid conflicts with `contrib/amcheck`, provides the same
+functionality to earlier versions of PostgreSQL.  `amcheck_next` also exists to
+provide additional verification checks that do not yet appear in stable
+PostgreSQL `contrib/amcheck` releases.
+
+It is safe (though generally not useful) to install `amcheck_next` alongside
+`contrib/amcheck`.
 
 ### Invariants
 
@@ -57,7 +70,32 @@ tracker</a>.
 
 ## Installation
 
-### Building using PGXS (generic)
+### Prebuilt packages
+
+It is recommended that `amcheck` be installed using prebuilt packages where
+available.
+
+#### Debian/Ubuntu
+
+The most recent `amcheck` packages are available from the PostgreSQL Community
+APT repository (http://apt.postgresql.org).  Instructions can be found in the
+APT section of the PostgreSQL Wiki (https://wiki.postgresql.org/wiki/Apt).
+
+Once the Community APT repository is set up, installation of `amcheck` is
+generally a simple matter of installing the package that matches your
+PostgreSQL version:
+
+```shell
+sudo aptitude install postgresql-10-amcheck
+```
+#### Redhat/CentOS
+
+RPM packages are currently unavailable, but may be added in the future based on
+demand from users.
+
+### Building from source
+
+#### Building using PGXS (generic)
 
 The module can be built using the standard PGXS infrastructure.  For this to
 work, you will need to have the `pg_config` program available in your $PATH.
@@ -75,7 +113,7 @@ make install
 Note that just because `pg_config` is located in one user's $PATH does not
 necessarily make it so for the root user.
 
-#### Building Debian/Ubuntu packages
+#### Building Debian/Ubuntu packages from source
 
 The Makefile also provides a target for building Debian packages. The target
 has a dependency on `debhelper`, `devscripts`, `postgresql-server-dev-all`, and
@@ -90,17 +128,14 @@ make deb
 sudo dpkg -i ./build/postgresql-9.4-amcheck_*.deb
 ```
 
-### Setting up PostgreSQL
+## Setting up PostgreSQL
 
-Once the module is built and installed, it should be created as a PostgreSQL
-extension in every database that requires it:
+Once the module is built and/or installed, it may be created as a PostgreSQL
+extension:
 
 `mydb=# CREATE EXTENSION amcheck_next;`
 
 `amcheck` functions may be used only by superusers.
-
-Note that the extension is named `amcheck_next` in order to distinguish it from
-the PostgreSQL contrib extension `amcheck`.
 
 ## Interface
 

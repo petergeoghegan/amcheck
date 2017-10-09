@@ -1,5 +1,5 @@
 # amcheck_next extension
-comment = 'verify the logical consistency of indexes'
+comment = 'functions for verifying relation integrity'
 default_version = '1'
 module_pathname = '$libdir/amcheck_next'
 relocatable = true

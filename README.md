@@ -1,4 +1,4 @@
-# amcheck/amcheck_next: Verify the logical consistency of PostgreSQL B-Tree indexes
+# amcheck/amcheck_next: functions for verifying PostgreSQL relation integrity"
 
 Current version: 1.0 (`amcheck_next` extension/SQL version: 1)
 

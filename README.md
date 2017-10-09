@@ -1,4 +1,4 @@
-# amcheck/amcheck_next: functions for verifying PostgreSQL relation integrity"
+# amcheck/amcheck_next: functions for verifying PostgreSQL relation integrity
 
 Current version: 1.0 (`amcheck_next` extension/SQL version: 1)
 
@@ -88,10 +88,9 @@ PostgreSQL version:
 ```shell
 sudo aptitude install postgresql-10-amcheck
 ```
-#### Redhat/CentOS
+#### Redhat/CentOS/Photon OS
 
-RPM packages are currently unavailable, but may be added in the future based on
-demand from users.
+RPM packages are currently unavailable, but are planned for a future release.
 
 ### Building from source
 

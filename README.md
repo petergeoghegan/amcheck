@@ -77,20 +77,31 @@ available.
 
 #### Debian/Ubuntu
 
-The most recent `amcheck` packages are available from the PostgreSQL Community
-APT repository (http://apt.postgresql.org).  Instructions can be found in the
-APT section of the PostgreSQL Wiki (https://wiki.postgresql.org/wiki/Apt).
+The most recent `amcheck` release is available from the PostgreSQL Community
+APT repository (http://apt.postgresql.org).  Setup instructions can be found in
+the APT section of the PostgreSQL Wiki (https://wiki.postgresql.org/wiki/Apt).
 
-Once the Community APT repository is set up, installation of `amcheck` is
-generally a simple matter of installing the package that matches your
-PostgreSQL version:
+Once the Community APT repository is set up, and PostgreSQL has itself been
+installed from a community package, installation of `amcheck` is generally
+a simple matter of installing the package that matches your PostgreSQL version:
 
 ```shell
 sudo aptitude install postgresql-10-amcheck
 ```
-#### Redhat/CentOS/Photon OS
 
-RPM packages are currently unavailable, but are planned for a future release.
+#### Redhat/CentOS/SLES
+
+The most recent `amcheck` release is available from the PostgreSQL Community
+yum repository (http://yum.postgresql.org).  Setup instructions can be found at
+https://yum.postgresql.org/howtoyum.php.
+
+Once the Community yum repository is set up, and PostgreSQL has itself been
+installed from a community package, installation of `amcheck` is generally
+a simple matter of installing the package that matches your PostgreSQL version:
+
+```shell
+sudo yum install amcheck_next10
+```
 
 ### Building from source
 

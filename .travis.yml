@@ -31,7 +31,7 @@ before_script:
    - make USE_PGXS=1 PG_CONFIG=${PGHOME}/bin/pg_config install
 
 script:
-   - make USE_PGXS=1 PG_CONFIG=${PGHOME}/bin/pg_config installcheck PGUSER=$USER
+   - make USE_PGXS=1 PG_CONFIG=${PGHOME}/bin/pg_config installcheck PGUSER=travis
 
 after_script:
    - if [ -f regression.diffs ]; then cat regression.diffs; fi

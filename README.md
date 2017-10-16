@@ -68,6 +68,10 @@ Report bugs using the <a
 href="https://github.com/petergeoghegan/amcheck/issues">Github issue
 tracker</a>.
 
+### Test status
+
+[![Build Status](https://travis-ci.org/petergeoghegan/amcheck.svg?branch=master)](https://travis-ci.org/petergeoghegan/amcheck)
+
 ## Installation
 
 ### Prebuilt packages

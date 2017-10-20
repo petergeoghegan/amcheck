@@ -24,7 +24,7 @@ although since in practice the majority of PostgreSQL indexes are B-Tree
 indexes, `amcheck` is likely to be effective as a general corruption smoke-test
 in production PostgreSQL installations.
 
-See "Using amcheck effectively" for information about the kinds of real-world
+See [Using amcheck effectively](#using-amcheck-effectively) for information about the kinds of real-world
 problems `amcheck` is intended to detect.
 
 ### Project background

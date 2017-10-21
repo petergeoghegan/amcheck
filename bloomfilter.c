@@ -34,7 +34,7 @@
 
 #define MAX_HASH_FUNCS		10
 
-typedef struct bloom_filter
+struct bloom_filter
 {
 	/* K hash functions are used, which are randomly seeded */
 	int				k_hash_funcs;
@@ -42,7 +42,7 @@ typedef struct bloom_filter
 	/* Bitset is sized directly in bits.  It must be a power-of-two <= 2^32. */
 	int64			bitset_bits;
 	unsigned char	bitset[FLEXIBLE_ARRAY_MEMBER];
-} bloom_filter;
+};
 
 static int my_bloom_power(int64 target_bitset_bits);
 static int optimal_k(int64 bitset_bits, int64 total_elems);

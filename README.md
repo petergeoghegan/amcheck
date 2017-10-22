@@ -4,16 +4,16 @@ Current version: 1.2 (`amcheck_next` extension/SQL version: 2)
 
 Author: Peter Geoghegan [`<pg@bowt.ie>`](mailto:pg@bowt.ie)
 
-License: <a href="https://opensource.org/licenses/postgresql">PostgreSQL license</a>
+License: [PostgreSQL license](https://opensource.org/licenses/postgresql)
 
 Supported versions: PostgreSQL 9.4+
 
 Note that Microsoft Windows is unsupported,  because most PostgreSQL versions
-lack <a
-href="https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=56018bf2">
-the necessary workaround</a> for <a
-href="https://postgr.es/m/508E4121.10804%40ringerc.id.au">various restrictions
-on dynamic linking</a> that only exist on that platform.
+lack [the necessary
+workaround](https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=56018bf2)
+for [various restrictions on dynamic
+linking](https://postgr.es/m/508E4121.10804%40ringerc.id.au) that only exist on
+that platform.
 
 ## Overview
 
@@ -24,14 +24,13 @@ although since in practice the majority of PostgreSQL indexes are B-Tree
 indexes, `amcheck` is likely to be effective as a general corruption smoke-test
 in production PostgreSQL installations.
 
-See [Using amcheck effectively](#using-amcheck-effectively) for information about the kinds of real-world
-problems `amcheck` is intended to detect.
+See [Using amcheck effectively](#using-amcheck-effectively) for information
+about the kinds of real-world problems `amcheck` is intended to detect.
 
 ### Project background
 
-`amcheck` is a <a
-href="https://www.postgresql.org/docs/current/static/amcheck.html">contrib
-extension module that originally appeared in PostgreSQL 10</a>.  This
+`amcheck` is a [contrib extension module that originally appeared in PostgreSQL
+10](https://www.postgresql.org/docs/current/static/amcheck.html).  This
 externally maintained version of the extension, which is formally named
 `amcheck_next` to avoid conflicts with `contrib/amcheck`, provides the same
 functionality to earlier versions of PostgreSQL.  `amcheck_next` also exists to
@@ -57,15 +56,10 @@ Verification is performed using the same procedures as those used by index
 scans themselves, which may be user-defined operator class code.  For example,
 B-Tree index verification relies on comparisons made with one or more B-Tree
 support function 1 routines, much like B-Tree index scans rely on the routines
-to guide the scan to a point in the underlying table;  see
-http://www.postgresql.org/docs/current/static/xindex.html for details of
-operator class support functions.
-
-### Bugs
-
-Report bugs using the <a
-href="https://github.com/petergeoghegan/amcheck/issues">Github issue
-tracker</a>.
+to guide the scan to a point in the underlying table;  see [the PostgreSQL
+documentation on Index Access Methods and Operator
+Classes](https://www.postgresql.org/docs/current/static/xindex.html) for details
+of operator class support functions.
 
 ### Test status
 
@@ -80,9 +74,9 @@ available.
 
 #### Debian/Ubuntu
 
-The most recent `amcheck` release is available from the PostgreSQL Community
-APT repository (http://apt.postgresql.org).  Setup instructions can be found in
-the APT section of the PostgreSQL Wiki (https://wiki.postgresql.org/wiki/Apt).
+The most recent `amcheck` release is available from [the PostgreSQL Community
+APT repository](https://apt.postgresql.org).  Setup instructions can be found in
+the [APT section of the PostgreSQL Wiki](https://wiki.postgresql.org/wiki/Apt).
 
 Once the Community APT repository is set up, and PostgreSQL has itself been
 installed from a community package, installation of `amcheck` is generally
@@ -94,9 +88,9 @@ sudo aptitude install postgresql-10-amcheck
 
 #### Redhat/CentOS/SLES
 
-The most recent `amcheck` release is available from the PostgreSQL Community
-yum repository (http://yum.postgresql.org).  Setup instructions can be found at
-https://yum.postgresql.org/howtoyum.php.
+The most recent `amcheck` release is available from [the PostgreSQL Community
+yum repository](https://yum.postgresql.org).  Setup can be performed by
+following the [PostgreSQL yum Howto](https://yum.postgresql.org/howtoyum.php).
 
 Once the Community yum repository is set up, and PostgreSQL has itself been
 installed from a community package, installation of `amcheck` is generally
@@ -170,11 +164,16 @@ SQL calling conventions:
   WHERE relname = 'pg_database_oid_index';
 ```
 
-See the <a
-href="http://www.postgresql.org/docs/current/static/datatype-oid.html">PostgreSQL
-documentation on Object identifier types</a> for more information.
+See the [PostgreSQL documentation on Object identifier
+types](https://www.postgresql.org/docs/current/static/datatype-oid.html) for
+more information.
 
-### `bt_index_check(index regclass, heapallindexed boolean DEFAULT false) returns void`
+### `bt_index_check`
+
+```sql
+bt_index_check(index regclass, heapallindexed boolean DEFAULT false)
+returns void
+```
 
 `bt_index_check` tests that its target, a B-Tree index, respects a variety of
 invariants.  Example usage:
@@ -195,8 +194,9 @@ invariants.  Example usage:
   AND i.indisready AND i.indisvalid
   ORDER BY c.relpages DESC LIMIT 10;
 ```
-```shell
-   bt_index_check |             relname             | relpages 
+
+```
+   bt_index_check |             relname             | relpages
   ----------------+---------------------------------+----------
                   | pg_depend_reference_index       |       43
                   | pg_depend_depender_index        |       40
@@ -227,7 +227,12 @@ test for corruption is required in a live production environment, using
 verification and limiting the impact on application performance and
 availability.
 
-### `bt_index_parent_check(index regclass, heapallindexed boolean DEFAULT false) returns void`
+### `bt_index_parent_check`
+
+```sql
+bt_index_parent_check(index regclass, heapallindexed boolean DEFAULT false)
+returns void
+```
 
 `bt_index_parent_check` tests that its target, a B-Tree index, respects a
 variety of invariants.  Optionally, when the `heapallindexed` argument is
@@ -404,11 +409,11 @@ definition, should never happen.  It seems unlikely that there could ever be a
 useful *general* remediation to problems it detects.
 
 In general, an explanation for the root cause of an invariant violation should
-be sought.  The <a
-href="https://www.postgresql.org/docs/current/static/pageinspect.html">pageinspect</a>
-tool can play a useful role in diagnosing corruption that `amcheck` highlights.
-A `REINDEX` may or may not be effective in repairing corruption, depending on
-the exact details of how the corruption originated.
+be sought.
+[`contrib/pageinspect`](https://www.postgresql.org/docs/current/static/pageinspect.html)
+can play a useful role in diagnosing corruption that `amcheck` highlights.  A
+`REINDEX` may or may not be effective in repairing corruption, depending on the
+exact details of how the corruption originated.
 
 In general, `amcheck` can only prove the presence of corruption; it cannot
 prove its absence.

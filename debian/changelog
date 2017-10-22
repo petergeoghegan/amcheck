@@ -1,3 +1,9 @@
+amcheck (1.2-1) unstable; urgency=medium
+
+  * Fix unportable use of typedef
+
+ -- Peter Geoghegan <pg@bowt.ie>  Sat, 21 Oct 2017 19:05:57 -0700
+
 amcheck (1.1-1) unstable; urgency=medium
 
   * Add heapallindexed verification

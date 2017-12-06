@@ -107,7 +107,12 @@ bloom_create(int64 total_elems, int bloom_work_mem, uint32 seed)
 	filter = palloc0(offsetof(bloom_filter, bitset) +
 					 sizeof(unsigned char) * bitset_bytes);
 	filter->k_hash_funcs = optimal_k(bitset_bits, total_elems);
-	filter->seed = seed;
+
+	/*
+	 * Hash caller's seed value.  We don't trust caller to provide values
+	 * uniformly distributed within the range of 0 - PG_UINT32_MAX.
+	 */
+	filter->seed = DatumGetUInt32(hash_uint32(seed));
 	filter->bitset_bits = bitset_bits;
 
 	return filter;
@@ -266,8 +271,13 @@ k_hashes(bloom_filter *filter, uint32 *hashes, unsigned char *elem, size_t len)
 	hasha = DatumGetUInt32(hash_any(elem, len));
 	hashb = (filter->k_hash_funcs > 1 ? sdbmhash(elem, len) : 0);
 
-	/* Mix seed value */
-	hasha += filter->seed;
+	/*
+	 * Mix seed value using XOR.  Mixing with addition instead would defeat the
+	 * purpose of having a seed (false positives would never change for a given
+	 * set of input elements).
+	 */
+	hasha ^= filter->seed;
+
 	/* Apply "MOD m" to avoid losing bits/out-of-bounds array access */
 	hasha = hasha % filter->bitset_bits;
 	hashb = hashb % filter->bitset_bits;

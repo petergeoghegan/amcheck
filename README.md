@@ -8,12 +8,13 @@ License: [PostgreSQL license](https://opensource.org/licenses/postgresql)
 
 Supported versions: PostgreSQL 9.4+
 
-Note that Microsoft Windows is unsupported,  because most PostgreSQL versions
-lack [the necessary
-workaround](https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=56018bf2)
+Note that Microsoft Windows is supported, but only on point releases that have
+[the necessary
+workaround](https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=c572599c65bfe0387563233faabecd2845073538)
 for [various restrictions on dynamic
 linking](https://postgr.es/m/508E4121.10804%40ringerc.id.au) that only exist on
-that platform.
+that platform.  The minimum supported point releases are 9.4.16, 9.5.11, 9.6.7,
+and 10.2.
 
 ## Overview
 

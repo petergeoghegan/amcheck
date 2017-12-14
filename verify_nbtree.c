@@ -360,9 +360,13 @@ bt_check_every_level(Relation rel, Relation heaprel, bool readonly,
 	/* Create context for page */
 	state->targetcontext = AllocSetContextCreate(CurrentMemoryContext,
 												 "amcheck context",
+#if PG_VERSION_NUM >= 110000
+												 ALLOCSET_DEFAULT_SIZES);
+#else
 												 ALLOCSET_DEFAULT_MINSIZE,
 												 ALLOCSET_DEFAULT_INITSIZE,
 												 ALLOCSET_DEFAULT_MAXSIZE);
+#endif
 	state->checkstrategy = GetAccessStrategy(BAS_BULKREAD);
 
 	/* Get true root block from meta-page */

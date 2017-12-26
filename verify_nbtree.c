@@ -1366,7 +1366,7 @@ static inline bool
 invariant_leq_offset(BtreeCheckState *state, ScanKey key,
 					 OffsetNumber upperbound)
 {
-	int16		natts = state->rel->rd_rel->relnatts;
+	int16		natts = IndexRelationGetNumberOfKeyAttributes(state->rel);
 	int32		cmp;
 
 	cmp = _bt_compare(state->rel, natts, key, state->target, upperbound);
@@ -1385,7 +1385,7 @@ static inline bool
 invariant_geq_offset(BtreeCheckState *state, ScanKey key,
 					 OffsetNumber lowerbound)
 {
-	int16		natts = state->rel->rd_rel->relnatts;
+	int16		natts = IndexRelationGetNumberOfKeyAttributes(state->rel);
 	int32		cmp;
 
 	cmp = _bt_compare(state->rel, natts, key, state->target, lowerbound);
@@ -1408,7 +1408,7 @@ invariant_leq_nontarget_offset(BtreeCheckState *state,
 							   Page nontarget, ScanKey key,
 							   OffsetNumber upperbound)
 {
-	int16		natts = state->rel->rd_rel->relnatts;
+	int16		natts = IndexRelationGetNumberOfKeyAttributes(state->rel);
 	int32		cmp;
 
 	cmp = _bt_compare(state->rel, natts, key, nontarget, upperbound);

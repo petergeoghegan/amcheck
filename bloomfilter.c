@@ -16,8 +16,8 @@
  * This is used to balance the use of memory against the final false positive
  * rate.
  *
- * Portions Copyright (c) 2016-2017, Peter Geoghegan
- * Portions Copyright (c) 1996-2017, The PostgreSQL Global Development Group
+ * Portions Copyright (c) 2016-2018, Peter Geoghegan
+ * Portions Copyright (c) 1996-2018, The PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, The Regents of the University of California
  *
  * IDENTIFICATION

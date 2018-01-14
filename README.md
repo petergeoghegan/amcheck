@@ -310,6 +310,17 @@ most real world cases.  Moreover, frequent verification allows problems to be
 caught earlier on average, which helps to limit the overall impact of
 corruption, and often simplifies root cause analysis.
 
+### `gist_index_check`
+
+```sql
+gist_index_check(index regclass)
+returns void
+```
+
+`gist_index_check` tests that its target GiST has consistent parent-child
+tuples relations (according to RTContainedByStrategyNumber strategy) and page
+graph respects balanced-tree invariants.
+
 ## Using amcheck effectively
 
 ### Causes of corruption

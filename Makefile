@@ -5,7 +5,7 @@ MODULE_big = amcheck_next
 OBJS       = bloomfilter.o verify_nbtree.o verify_gist.o $(WIN32RES)
 
 EXTENSION  = amcheck_next
-DATA       = amcheck_next--1.sql amcheck_next--2.sql amcheck_next--1--2.sql amcheck_next--2--3.sql
+DATA       = amcheck_next--1.sql amcheck_next--2.sql amcheck_next--3.sql amcheck_next--1--2.sql amcheck_next--2--3.sql
 PGFILEDESC = "amcheck_next - functions for verifying relation integrity"
 DOCS       = README.md
 REGRESS    = install_amcheck_next check_btree check_gist

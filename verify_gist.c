@@ -40,48 +40,6 @@ typedef struct GistScanItem
 	struct GistScanItem *next;
 } GistScanItem;
 
-/* 
- * Extract tuple attributes and check RTContainedByStrategyNumber 
- * relation with parent. If parent tuple contains null, child tuple must
- * also contain a null.
- */
-static inline void
-gist_check_tuple_keys(Relation rel, IndexTuple tuple, GISTENTRY *parent_entries, bool *parent_isnull, GISTSTATE *state, Page page)
-{
-	int i;
-	GISTENTRY entries[INDEX_MAX_KEYS];
-	bool isnull[INDEX_MAX_KEYS];
-
-	gistDeCompressAtt(state, rel, tuple, page,
-					  (OffsetNumber) 0, entries, isnull);
-
-	for (i = 0; i < rel->rd_att->natts; i++)
-	{
-		Datum test;
-		bool recheck;
-		if (parent_isnull[i] != isnull[i])
-			ereport(ERROR,
-					(errcode(ERRCODE_INDEX_CORRUPTED),
-					 errmsg("index \"%s\" has inconsistent null records",
-							RelationGetRelationName(rel))));
-		if (parent_isnull[i])
-			continue;
-		test = FunctionCall5Coll(&state->consistentFn[i],
-									 state->supportCollation[i],
-									 PointerGetDatum(&entries[i]),
-									 parent_entries[i].key,
-									 Int16GetDatum(RTContainedByStrategyNumber),
-									 ObjectIdGetDatum(InvalidOid),
-									 PointerGetDatum(&recheck));
-
-		if (!DatumGetBool(test))
-			ereport(ERROR,
-					(errcode(ERRCODE_INDEX_CORRUPTED),
-					 errmsg("index \"%s\" has inconsistent records",
-							RelationGetRelationName(rel))));
-	}
-}
-
 /*
  * For every tuple on page check if it is contained by tuple on parent page
  */
@@ -90,18 +48,11 @@ gist_check_page_keys(Relation rel, Page parentpage, Page page, IndexTuple parent
 {
 	OffsetNumber i,
 				maxoff = PageGetMaxOffsetNumber(page);
-	GISTENTRY parent_entries[INDEX_MAX_KEYS];
-	bool isnull[INDEX_MAX_KEYS];
-
-	gistDeCompressAtt(state, rel, parent, parentpage,
-					  (OffsetNumber) 0, parent_entries, isnull);
 
 	for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 	{
 		ItemId iid = PageGetItemId(page, i);
 		IndexTuple idxtuple = (IndexTuple) PageGetItem(page, iid);
-
-		gist_check_tuple_keys(rel, idxtuple, parent_entries, isnull, state, page);
 
 		if (GistTupleIsInvalid(idxtuple))
 			ereport(LOG,
@@ -109,6 +60,15 @@ gist_check_page_keys(Relation rel, Page parentpage, Page page, IndexTuple parent
 							RelationGetRelationName(rel)),
 					 errdetail("This is caused by an incomplete page split at crash recovery before upgrading to PostgreSQL 9.1."),
 					 errhint("Please REINDEX it.")));
+
+		/*
+		 * Tree is inconsistent if adjustement is necessary for any parent tuple
+		 */
+		if (gistgetadjusted(rel, parent, idxtuple, state))
+			ereport(ERROR,
+					(errcode(ERRCODE_INDEX_CORRUPTED),
+					 errmsg("index \"%s\" has inconsistent records",
+							RelationGetRelationName(rel))));
 	}
 }
 

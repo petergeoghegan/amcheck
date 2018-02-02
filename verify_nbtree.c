@@ -461,7 +461,11 @@ bt_check_every_level(Relation rel, Relation heaprel, bool readonly,
 		indexinfo->ii_ExclusionStrats = NULL;
 
 		IndexBuildHeapScan(state->heaprel, state->rel, indexinfo, true,
+#if PG_VERSION_NUM >= 110000
+						   bt_tuple_present_callback, (void *) state, NULL);
+#else
 						   bt_tuple_present_callback, (void *) state);
+#endif
 
 		ereport(DEBUG1,
 				(errmsg_internal("finished verifying presence of " INT64_FORMAT " tuples (proportion of bits set: %f) from table \"%s\"",

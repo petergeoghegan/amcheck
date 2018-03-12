@@ -1313,7 +1313,7 @@ bt_tuple_present_callback(Relation index, HeapTuple htup, Datum *values,
 	if (bloom_lacks_element(state->filter, (unsigned char *) itup,
 							IndexTupleSize(itup)))
 		ereport(ERROR,
-				(errcode(ERRCODE_DATA_CORRUPTED),
+				(errcode(ERRCODE_INDEX_CORRUPTED),
 				 errmsg("heap tuple (%u,%u) from table \"%s\" lacks matching index tuple within index \"%s\"",
 						ItemPointerGetBlockNumber(&(itup->t_tid)),
 						ItemPointerGetOffsetNumber(&(itup->t_tid)),

@@ -6,7 +6,7 @@ Author: Peter Geoghegan [`<pg@bowt.ie>`](mailto:pg@bowt.ie)
 
 License: [PostgreSQL license](https://opensource.org/licenses/postgresql)
 
-Supported versions: PostgreSQL 9.4+
+Supported versions: PostgreSQL 9.4 - PostgreSQL 10
 
 Note that Microsoft Windows is supported, but only on point releases that have
 [the necessary

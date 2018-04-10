@@ -1,3 +1,7 @@
 # Only support versions with robust approach to B-Tree page deletion and
-# concurrent page splits
-9.4+
+# concurrent page splits.  Don't support v11, since the v11 contrib version of
+# amcheck is already roughly at feature parity with amcheck_next.
+9.4
+9.5
+9.6
+10

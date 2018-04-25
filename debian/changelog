@@ -1,3 +1,11 @@
+amcheck (1.4-1) unstable; urgency=medium
+
+  * Add missing and dangling downlink checks from PostgreSQL 11 devel.
+
+  * Add ItemIdGetLength()/IndexTupleSize() match check from PostgreSQL 11 devel.
+
+ -- Peter Geoghegan <pg@bowt.ie>  Wed, 25 Apr 2018 16:34:22 -0700
+
 amcheck (1.3-1) unstable; urgency=medium
 
   * Fix bug in seeding Bloom filter

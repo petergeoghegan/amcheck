@@ -1,6 +1,6 @@
 # amcheck/amcheck_next: functions for verifying PostgreSQL relation integrity
 
-Current version: 1.3 (`amcheck_next` extension/SQL version: 2)
+Current version: 1.4 (`amcheck_next` extension/SQL version: 2)
 
 Author: Peter Geoghegan [`<pg@bowt.ie>`](mailto:pg@bowt.ie)
 
@@ -192,7 +192,7 @@ invariants.  Example usage:
   -- Don't check temp tables, which may be from another session:
   AND c.relpersistence != 't'
   -- Function may throw an error when this is omitted:
-  AND i.indisready AND i.indisvalid
+  AND c.relkind = 'i' AND i.indisready AND i.indisvalid
   ORDER BY c.relpages DESC LIMIT 10;
 ```
 
@@ -238,13 +238,14 @@ returns void
 `bt_index_parent_check` tests that its target, a B-Tree index, respects a
 variety of invariants.  Optionally, when the `heapallindexed` argument is
 `true`, the function verifies the presence of all heap tuples that should be
-found within the index. The checks performed by `bt_index_parent_check` are a
-superset of the checks performed by `bt_index_check` when called with the same
-options.  `bt_index_parent_check` can be thought of as a more thorough variant
-of `bt_index_check`: unlike `bt_index_check`, `bt_index_parent_check` also
-checks invariants that span parent/child relationships.
-`bt_index_parent_check` follows the general convention of raising an error if
-it finds a logical inconsistency or other problem.
+found within the index, and that there are no missing downlinks in the index
+structure.  The checks performed by `bt_index_parent_check` are a superset of
+the checks performed by `bt_index_check` when called with the same options.
+`bt_index_parent_check` can be thought of as a more thorough variant of
+`bt_index_check`: unlike `bt_index_check`, `bt_index_parent_check` also checks
+invariants that span parent/child relationships.  `bt_index_parent_check`
+follows the general convention of raising an error if it finds a logical
+inconsistency or other problem.
 
 A `ShareLock` is required on the target index by `bt_index_parent_check` (a
 `ShareLock` is also acquired on the heap relation).  These locks prevent

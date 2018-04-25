@@ -10,8 +10,8 @@
  *
  * When index-to-heap verification is requested, a Bloom filter is used to
  * fingerprint all tuples in the target index, as the index is traversed to
- * verify its structure.  A heap scan later verifies the presence in the heap
- * of all index tuples fingerprinted within the Bloom filter.
+ * verify its structure.  A heap scan later uses Bloom filter probes to verify
+ * that every visible heap tuple has a matching index tuple.
  *
  *
  * Portions Copyright (c) 2016-2018, Peter Geoghegan
@@ -92,6 +92,10 @@ typedef struct BtreeCheckState
 
 	/* Bloom filter fingerprints B-Tree index */
 	bloom_filter *filter;
+	/* Bloom filter fingerprints downlink blocks within tree */
+	bloom_filter *downlinkfilter;
+	/* Right half of incomplete split marker */
+	bool		rightsplit;
 	/* Debug counter */
 	int64		heaptuplespresent;
 } BtreeCheckState;
@@ -115,19 +119,20 @@ PG_FUNCTION_INFO_V1(bt_index_check_next);
 PG_FUNCTION_INFO_V1(bt_index_parent_check_next);
 
 static void bt_index_check_internal(Oid indrelid, bool parentcheck,
-									bool heapallindexed);
+						bool heapallindexed);
 static inline void btree_index_checkable(Relation rel);
 static void bt_check_every_level(Relation rel, Relation heaprel,
-								 bool readonly, bool heapallindexed);
+					 bool readonly, bool heapallindexed);
 static BtreeLevel bt_check_level_from_leftmost(BtreeCheckState *state,
 							 BtreeLevel level);
 static void bt_target_page_check(BtreeCheckState *state);
 static ScanKey bt_right_page_check_scankey(BtreeCheckState *state);
 static void bt_downlink_check(BtreeCheckState *state, BlockNumber childblock,
 				  ScanKey targetkey);
+static void bt_downlink_missing_check(BtreeCheckState *state);
 static void bt_tuple_present_callback(Relation index, HeapTuple htup,
-									  Datum *values, bool *isnull,
-									  bool tupleIsAlive, void *checkstate);
+						  Datum *values, bool *isnull,
+						  bool tupleIsAlive, void *checkstate);
 static inline bool offset_is_negative_infinity(BTPageOpaque opaque,
 							OffsetNumber offset);
 static inline bool invariant_leq_offset(BtreeCheckState *state,
@@ -228,6 +233,13 @@ bt_index_check_internal(Oid indrelid, bool parentcheck, bool heapallindexed)
 	 * Open the target index relations separately (like relation_openrv(), but
 	 * with heap relation locked first to prevent deadlocking).  In hot
 	 * standby mode this will raise an error when parentcheck is true.
+	 *
+	 * There is no need for the usual indcheckxmin usability horizon test here,
+	 * even in the heapallindexed case, because index undergoing verification
+	 * only needs to have entries for a new transaction snapshot, which is a
+	 * behavior we're able to approximate.  (If this is a parentcheck
+	 * verification, there is no question about committed or recently dead heap
+	 * tuples lacking index entries due to concurrent activity.)
 	 */
 	indrel = index_open(indrelid, lockmode);
 
@@ -337,7 +349,7 @@ bt_check_every_level(Relation rel, Relation heaprel, bool readonly,
 	/*
 	 * Initialize state for entire verification operation
 	 */
-	state = palloc(sizeof(BtreeCheckState));
+	state = palloc0(sizeof(BtreeCheckState));
 	state->rel = rel;
 	state->heaprel = heaprel;
 	state->readonly = readonly;
@@ -345,8 +357,8 @@ bt_check_every_level(Relation rel, Relation heaprel, bool readonly,
 
 	if (state->heapallindexed)
 	{
-		int64	total_elems;
-		uint32	seed;
+		int64		total_elems;
+		uint64		seed;
 
 		/* Size Bloom filter based on estimated number of tuples in index */
 		total_elems = (int64) state->rel->rd_rel->reltuples;
@@ -355,6 +367,43 @@ bt_check_every_level(Relation rel, Relation heaprel, bool readonly,
 		/* Create Bloom filter to fingerprint index */
 		state->filter = bloom_create(total_elems, maintenance_work_mem, seed);
 		state->heaptuplespresent = 0;
+
+		if (!state->readonly)
+		{
+			/*
+			 * contrib/amcheck from PostgreSQL 11 must defend against the
+			 * possibility that an old xact snapshot was returned at higher
+			 * isolation levels when that snapshot is not safe for index scans
+			 * of the target index.  This is possible with that version when
+			 * the snapshot sees tuples that are before the index's
+			 * indcheckxmin horizon.
+			 *
+			 * We don't do the same IsolationUsesXactSnapshot() test here, as
+			 * we don't even have a snapshot to test at this point.  This is
+			 * correct because we're already using TransactionXmin to simulate
+			 * using a snapshot acquired at the beginning of our xact, so the
+			 * isolation level cannot change the number of tuples that are
+			 * verrified as having index entries through fingerprinting.  See
+			 * bt_tuple_present_callback() for full details.
+			 */
+		}
+		else
+		{
+			int64	total_pages;
+
+			/*
+			 * Extra readonly downlink check.
+			 *
+			 * In readonly case, we know that there cannot be a concurrent page
+			 * split or a concurrent page deletion, which gives us the
+			 * opportunity to verify that every non-ignorable page had a
+			 * downlink one level up.  We must be tolerant of interrupted page
+			 * splits and page deletions, though.  This is taken care of in
+			 * bt_downlink_missing_check().
+			 */
+			total_pages = (int64) state->rel->rd_rel->relpages;
+			state->downlinkfilter = bloom_create(total_pages, work_mem, seed);
+		}
 	}
 
 	/* Create context for page */
@@ -402,6 +451,12 @@ bt_check_every_level(Relation rel, Relation heaprel, bool readonly,
 	while (current.leftmost != P_NONE)
 	{
 		/*
+		 * Leftmost page on level cannot be right half of incomplete split.
+		 * This can go stale immediately in !readonly case.
+		 */
+		state->rightsplit = false;
+
+		/*
 		 * Verify this level, and get left most page for next level down, if
 		 * not at leaf level
 		 */
@@ -417,48 +472,48 @@ bt_check_every_level(Relation rel, Relation heaprel, bool readonly,
 	}
 
 	/*
-	 * * Heap contains unindexed/malformed tuples check *
+	 * * Check whether heap contains unindexed/malformed tuples *
 	 */
 	if (state->heapallindexed)
 	{
-		IndexInfo  *indexinfo;
+		IndexInfo  *indexinfo = BuildIndexInfo(state->rel);
 
+		/* Report on extra downlink checks performed in readonly case */
 		if (state->readonly)
-			elog(DEBUG1, "verifying presence of all required tuples in index \"%s\"",
-				 RelationGetRelationName(rel));
-		else
-			elog(DEBUG1, "verifying presence of required tuples in index \"%s\" with xmin before %u",
-				 RelationGetRelationName(rel), TransactionXmin);
-
-		indexinfo = BuildIndexInfo(state->rel);
+		{
+			ereport(DEBUG1,
+					(errmsg_internal("finished verifying presence of downlink blocks within index \"%s\" with bitset %.2f%% set",
+									 RelationGetRelationName(rel),
+									 100.0 * bloom_prop_bits_set(state->downlinkfilter))));
+			bloom_free(state->downlinkfilter);
+		}
 
 		/*
-		 * Force use of MVCC snapshot (reuse CONCURRENTLY infrastructure) when
-		 * only AccessShareLocks held.  It seems like a good idea to not
-		 * diverge from expected heap lock strength.
+		 * Scan will behave as the first scan of a CREATE INDEX CONCURRENTLY
+		 * behaves in !readonly case.
+		 *
+		 * It's okay that we don't actually use the same lock strength for the
+		 * heap relation as any other ii_Concurrent caller would in !readonly
+		 * case.  We have no reason to care about a concurrent VACUUM
+		 * operation, since there isn't going to be a second scan of the heap
+		 * that needs to be sure that there was no concurrent recycling of
+		 * TIDs.
 		 */
 		indexinfo->ii_Concurrent = !state->readonly;
 
 		/*
 		 * Don't wait for uncommitted tuple xact commit/abort when index is a
-		 * unique index (or an index used by an exclusion constraint).  It is
-		 * supposed to be impossible to get duplicates with the already-defined
-		 * unique index in place.  Our relation-level locks prevent races
-		 * resulting in false positive corruption errors where an IndexTuple
-		 * insertion was just missed, but we still test its heap tuple.  (While
-		 * this would not be true for !readonly verification, it doesn't matter
-		 * because CREATE INDEX CONCURRENTLY index build heap scanning has no
-		 * special treatment for unique indexes to avoid.)
-		 *
-		 * Not waiting can only affect verification of indexes on system
-		 * catalogs, where heavyweights locks can be dropped before transaction
-		 * commit.  If anything, avoiding waiting slightly improves test
-		 * coverage.
+		 * unique index on a catalog (or an index used by an exclusion
+		 * constraint).  This could otherwise happen in the readonly case.
 		 */
 		indexinfo->ii_Unique = false;
 		indexinfo->ii_ExclusionOps = NULL;
 		indexinfo->ii_ExclusionProcs = NULL;
 		indexinfo->ii_ExclusionStrats = NULL;
+
+		elog(DEBUG1, "verifying that tuples from index \"%s\" are present in \"%s\"",
+			 RelationGetRelationName(state->rel),
+			 RelationGetRelationName(state->heaprel));
 
 		IndexBuildHeapScan(state->heaprel, state->rel, indexinfo, true,
 #if PG_VERSION_NUM >= 110000
@@ -468,9 +523,9 @@ bt_check_every_level(Relation rel, Relation heaprel, bool readonly,
 #endif
 
 		ereport(DEBUG1,
-				(errmsg_internal("finished verifying presence of " INT64_FORMAT " tuples (proportion of bits set: %f) from table \"%s\"",
-								 state->heaptuplespresent, bloom_prop_bits_set(state->filter),
-								 RelationGetRelationName(heaprel))));
+				(errmsg_internal("finished verifying presence of " INT64_FORMAT " tuples from table \"%s\" with bitset %.2f%% set",
+								 state->heaptuplespresent, RelationGetRelationName(heaprel),
+								 100.0 * bloom_prop_bits_set(state->filter))));
 
 		bloom_free(state->filter);
 	}
@@ -535,6 +590,25 @@ bt_check_level_from_leftmost(BtreeCheckState *state, BtreeLevel level)
 
 		if (P_IGNORE(opaque))
 		{
+			/*
+			 * Since there cannot be a concurrent VACUUM operation in readonly
+			 * mode, and since a page has no links within other pages (siblings
+			 * and parent) once it is marked fully deleted, it should be
+			 * impossible to land on a fully deleted page in readonly mode.
+			 * See bt_downlink_check() for further details.
+			 *
+			 * The bt_downlink_check() P_ISDELETED() check is repeated here so
+			 * that pages that are only reachable through sibling links get
+			 * checked.
+			 */
+			if (state->readonly && P_ISDELETED(opaque))
+				ereport(ERROR,
+						(errcode(ERRCODE_INDEX_CORRUPTED),
+						 errmsg("downlink or sibling link points to deleted block in index \"%s\"",
+								RelationGetRelationName(state->rel)),
+						 errdetail_internal("Block=%u left block=%u left link from block=%u.",
+											current, leftcurrent, opaque->btpo_prev)));
+
 			if (P_RIGHTMOST(opaque))
 				ereport(ERROR,
 						(errcode(ERRCODE_INDEX_CORRUPTED),
@@ -610,6 +684,10 @@ bt_check_level_from_leftmost(BtreeCheckState *state, BtreeLevel level)
 			 */
 		}
 
+		/*
+		 * readonly mode can only ever land on live pages and half-dead pages,
+		 * so sibling pointers should always be in mutual agreement
+		 */
 		if (state->readonly && opaque->btpo_prev != leftcurrent)
 			ereport(ERROR,
 					(errcode(ERRCODE_INDEX_CORRUPTED),
@@ -638,6 +716,13 @@ nextpage:
 					(errcode(ERRCODE_INDEX_CORRUPTED),
 					 errmsg("circular link chain found in block %u of index \"%s\"",
 							current, RelationGetRelationName(state->rel))));
+
+		/*
+		 * Record if page that is about to become target is the right half of
+		 * an incomplete page split.  This can go stale immediately in
+		 * !readonly case.
+		 */
+		state->rightsplit = P_INCOMPLETE_SPLIT(opaque);
 
 		leftcurrent = current;
 		current = opaque->btpo_next;
@@ -669,13 +754,18 @@ nextpage:
  *	 "real" data item on the page to the right (if such a first item is
  *	 available).
  *
- * Furthermore, when state passed shows ShareLock held, and target page is
- * internal page, function also checks:
+ * - That tuples report that they have the expected number of attributes.
+ *	 INCLUDE index pivot tuples should not contain non-key attributes.
+ *
+ * Furthermore, when state passed shows ShareLock held, function also checks:
  *
  * - That all child pages respect downlinks lower bound.
  *
+ * - That downlink to block was encountered in parent where that's expected.
+ *   (Limited to heapallindexed readonly callers.)
+ *
  * This is also where heapallindexed callers use their Bloom filter to
- * fingerprint IndexTuples.
+ * fingerprint IndexTuples for later IndexBuildHeapScan() verification.
  *
  * Note:  Memory allocated in this routine is expected to be released by caller
  * resetting state->targetcontext.
@@ -695,8 +785,8 @@ bt_target_page_check(BtreeCheckState *state)
 
 	/*
 	 * Loop over page items, starting from first non-highkey item, not high
-	 * key (if any).  Also, immediately skip "negative infinity" real item (if
-	 * any).
+	 * key (if any).  Most tests are not performed for the "negative infinity"
+	 * real item (if any).
 	 */
 	for (offset = P_FIRSTDATAKEY(topaque);
 		 offset <= max;
@@ -705,25 +795,55 @@ bt_target_page_check(BtreeCheckState *state)
 		ItemId		itemid;
 		IndexTuple	itup;
 		ScanKey		skey;
+		size_t		tupsize;
 
 		CHECK_FOR_INTERRUPTS();
 
+		itemid = PageGetItemId(state->target, offset);
+		itup = (IndexTuple) PageGetItem(state->target, itemid);
+		tupsize = IndexTupleSize(itup);
+
 		/*
-		 * Don't try to generate scankey using "negative infinity" garbage
-		 * data
+		 * lp_len should match the IndexTuple reported length exactly, since
+		 * lp_len is completely redundant in indexes, and both sources of tuple
+		 * length are MAXALIGN()'d.  nbtree does not use lp_len all that
+		 * frequently, and is surprisingly tolerant of corrupt lp_len fields.
+		 */
+		if (tupsize != ItemIdGetLength(itemid))
+			ereport(ERROR,
+					(errcode(ERRCODE_INDEX_CORRUPTED),
+					 errmsg("index tuple size does not equal lp_len in index \"%s\"",
+							RelationGetRelationName(state->rel)),
+					 errdetail_internal("Index tid=(%u,%u) tuple size=%zu lp_len=%u page lsn=%X/%X.",
+										state->targetblock, offset,
+										tupsize, ItemIdGetLength(itemid),
+										(uint32) (state->targetlsn >> 32),
+										(uint32) state->targetlsn),
+					 errhint("This could be a torn page problem.")));
+
+		/* Fingerprint downlink blocks in heapallindexed + readonly case */
+		if (state->heapallindexed && state->readonly && !P_ISLEAF(topaque))
+		{
+			BlockNumber childblock = ItemPointerGetBlockNumber(&itup->t_tid);
+
+			bloom_add_element(state->downlinkfilter,
+							  (unsigned char *) &childblock,
+							  sizeof(BlockNumber));
+		}
+
+		/*
+		 * Don't try to generate scankey using "negative infinity" item on
+		 * internal pages. They are always truncated to zero attributes.
 		 */
 		if (offset_is_negative_infinity(topaque, offset))
 			continue;
 
 		/* Build insertion scankey for current page offset */
-		itemid = PageGetItemId(state->target, offset);
-		itup = (IndexTuple) PageGetItem(state->target, itemid);
 		skey = _bt_mkscankey(state->rel, itup);
 
 		/* Fingerprint leaf page tuples (those that point to the heap) */
 		if (state->heapallindexed && P_ISLEAF(topaque) && !ItemIdIsDead(itemid))
-			bloom_add_element(state->filter, (unsigned char *) itup,
-							  IndexTupleSize(itup));
+			bloom_add_element(state->filter, (unsigned char *) itup, tupsize);
 
 		/*
 		 * * High key check *
@@ -888,6 +1008,14 @@ bt_target_page_check(BtreeCheckState *state)
 			bt_downlink_check(state, childblock, skey);
 		}
 	}
+
+	/*
+	 * * Check if page has a downlink in parent *
+	 *
+	 * This can only be checked in heapallindexed + readonly case.
+	 */
+	if (state->heapallindexed && state->readonly)
+		bt_downlink_missing_check(state);
 }
 
 /*
@@ -1171,6 +1299,40 @@ bt_downlink_check(BtreeCheckState *state, BlockNumber childblock,
 	copaque = (BTPageOpaque) PageGetSpecialPointer(child);
 	maxoffset = PageGetMaxOffsetNumber(child);
 
+	/*
+	 * Since there cannot be a concurrent VACUUM operation in readonly mode,
+	 * and since a page has no links within other pages (siblings and parent)
+	 * once it is marked fully deleted, it should be impossible to land on a
+	 * fully deleted page.
+	 *
+	 * It does not quite make sense to enforce that the page cannot even be
+	 * half-dead, despite the fact the downlink is modified at the same stage
+	 * that the child leaf page is marked half-dead.  That's incorrect because
+	 * there may occasionally be multiple downlinks from a chain of pages
+	 * undergoing deletion, where multiple successive calls are made to
+	 * _bt_unlink_halfdead_page() by VACUUM before it can finally safely mark
+	 * the leaf page as fully dead.  While _bt_mark_page_halfdead() usually
+	 * removes the downlink to the leaf page that is marked half-dead, that's
+	 * not guaranteed, so it's possible we'll land on a half-dead page with a
+	 * downlink due to an interrupted multi-level page deletion.
+	 *
+	 * We go ahead with our checks if the child page is half-dead.  It's safe
+	 * to do so because we do not test the child's high key, so it does not
+	 * matter that the original high key will have been replaced by a dummy
+	 * truncated high key within _bt_mark_page_halfdead().  All other page
+	 * items are left intact on a half-dead page, so there is still something
+	 * to test.
+	 */
+	if (P_ISDELETED(copaque))
+		ereport(ERROR,
+				(errcode(ERRCODE_INDEX_CORRUPTED),
+				 errmsg("downlink to deleted page found in index \"%s\"",
+						RelationGetRelationName(state->rel)),
+				 errdetail_internal("Parent block=%u child block=%u parent page lsn=%X/%X.",
+									state->targetblock, childblock,
+									(uint32) (state->targetlsn >> 32),
+									(uint32) state->targetlsn)));
+
 	for (offset = P_FIRSTDATAKEY(copaque);
 		 offset <= maxoffset;
 		 offset = OffsetNumberNext(offset))
@@ -1200,12 +1362,195 @@ bt_downlink_check(BtreeCheckState *state, BlockNumber childblock,
 }
 
 /*
+ * Checks if page is missing a downlink that it should have.
+ *
+ * A page that lacks a downlink/parent may indicate corruption.  However, we
+ * must account for the fact that a missing downlink can occasionally be
+ * encountered in a non-corrupt index.  This can be due to an interrupted page
+ * split, or an interrupted multi-level page deletion (i.e. there was a hard
+ * crash or an error during a page split, or while VACUUM was deleting a
+ * multi-level chain of pages).
+ *
+ * Note that this can only be called in readonly mode, so there is no need to
+ * be concerned about concurrent page splits or page deletions.
+ */
+static void
+bt_downlink_missing_check(BtreeCheckState *state)
+{
+	BTPageOpaque	topaque = (BTPageOpaque) PageGetSpecialPointer(state->target);
+	ItemId			itemid;
+	IndexTuple		itup;
+	Page			child;
+	BTPageOpaque	copaque;
+	uint32			level;
+	BlockNumber		childblk;
+
+	Assert(state->heapallindexed && state->readonly);
+	Assert(!P_IGNORE(topaque));
+
+	/* No next level up with downlinks to fingerprint from the true root */
+	if (P_ISROOT(topaque))
+		return;
+
+	/*
+	 * Incomplete (interrupted) page splits can account for the lack of a
+	 * downlink.  Some inserting transaction should eventually complete the
+	 * page split in passing, when it notices that the left sibling page is
+	 * P_INCOMPLETE_SPLIT().
+	 *
+	 * In general, VACUUM is not prepared for there to be no downlink to a page
+	 * that it deletes.  This is the main reason why the lack of a downlink can
+	 * be reported as corruption here.  It's not obvious that an invalid
+	 * missing downlink can result in wrong answers to queries, though, since
+	 * index scans that land on the child may end up consistently moving right.
+	 * The handling of concurrent page splits (and page deletions) within
+	 * _bt_moveright() cannot distinguish inconsistencies that last for a
+	 * moment from inconsistencies that are permanent and irrecoverable.
+	 *
+	 * VACUUM isn't even prepared to delete pages that have no downlink due to
+	 * an incomplete page split, but it can detect and reason about that case
+	 * by design, so it shouldn't be taken to indicate corruption.  See
+	 * _bt_pagedel() for full details.
+	 */
+	if (state->rightsplit)
+	{
+		ereport(DEBUG1,
+				(errcode(ERRCODE_NO_DATA),
+				 errmsg("harmless interrupted page split detected in index %s",
+						RelationGetRelationName(state->rel)),
+				 errdetail_internal("Block=%u level=%u left sibling=%u page lsn=%X/%X.",
+									state->targetblock, topaque->btpo.level,
+									topaque->btpo_prev,
+									(uint32) (state->targetlsn >> 32),
+									(uint32) state->targetlsn)));
+		return;
+	}
+
+	/* Target's downlink is typically present in parent/fingerprinted */
+	if (!bloom_lacks_element(state->downlinkfilter,
+							 (unsigned char *) &state->targetblock,
+							 sizeof(BlockNumber)))
+		return;
+
+	/*
+	 * Target is probably the "top parent" of a multi-level page deletion.
+	 * We'll need to descend the subtree to make sure that descendant pages are
+	 * consistent with that, though.
+	 *
+	 * If the target page (which must be non-ignorable) is a leaf page, then
+	 * clearly it can't be the top parent.  The lack of a downlink is probably
+	 * a symptom of a broad problem that could just as easily cause
+	 * inconsistencies anywhere else.
+	 */
+	if (P_ISLEAF(topaque))
+		ereport(ERROR,
+				(errcode(ERRCODE_INDEX_CORRUPTED),
+				 errmsg("leaf index block lacks downlink in index \"%s\"",
+						RelationGetRelationName(state->rel)),
+				 errdetail_internal("Block=%u page lsn=%X/%X.",
+									state->targetblock,
+									(uint32) (state->targetlsn >> 32),
+									(uint32) state->targetlsn)));
+
+	/* Descend from the target page, which is an internal page */
+	elog(DEBUG1, "checking for interrupted multi-level deletion due to missing downlink in index \"%s\"",
+		 RelationGetRelationName(state->rel));
+
+	level = topaque->btpo.level;
+	itemid = PageGetItemId(state->target, P_FIRSTDATAKEY(topaque));
+	itup = (IndexTuple) PageGetItem(state->target, itemid);
+	childblk = ItemPointerGetBlockNumber(&itup->t_tid);
+	for (;;)
+	{
+		CHECK_FOR_INTERRUPTS();
+
+		child = palloc_btree_page(state, childblk);
+		copaque = (BTPageOpaque) PageGetSpecialPointer(child);
+
+		if (P_ISLEAF(copaque))
+			break;
+
+		/* Do an extra sanity check in passing on internal pages */
+		if (copaque->btpo.level != level - 1)
+			ereport(ERROR,
+					(errcode(ERRCODE_INDEX_CORRUPTED),
+					 errmsg_internal("downlink points to block in index \"%s\" whose level is not one level down",
+									 RelationGetRelationName(state->rel)),
+					 errdetail_internal("Top parent/target block=%u block pointed to=%u expected level=%u level in pointed to block=%u.",
+										state->targetblock, childblk,
+										level - 1, copaque->btpo.level)));
+
+		level = copaque->btpo.level;
+		itemid = PageGetItemId(child, P_FIRSTDATAKEY(copaque));
+		itup = (IndexTuple) PageGetItem(child, itemid);
+		childblk = ItemPointerGetBlockNumber(&itup->t_tid);
+		/* Be slightly more pro-active in freeing this memory, just in case */
+		pfree(child);
+	}
+
+	/*
+	 * Since there cannot be a concurrent VACUUM operation in readonly mode,
+	 * and since a page has no links within other pages (siblings and parent)
+	 * once it is marked fully deleted, it should be impossible to land on a
+	 * fully deleted page.  See bt_downlink_check() for further details.
+	 *
+	 * The bt_downlink_check() P_ISDELETED() check is repeated here because
+	 * bt_downlink_check() does not visit pages reachable through negative
+	 * infinity items.  Besides, bt_downlink_check() is unwilling to descend
+	 * multiple levels.  (The similar bt_downlink_check() P_ISDELETED() check
+	 * within bt_check_level_from_leftmost() won't reach the page either, since
+	 * the leaf's live siblings should have their sibling links updated to
+	 * bypass the deletion target page when it is marked fully dead.)
+	 *
+	 * If this error is raised, it might be due to a previous multi-level page
+	 * deletion that failed to realize that it wasn't yet safe to mark the leaf
+	 * page as fully dead.  A "dangling downlink" will still remain when this
+	 * happens.  The fact that the dangling downlink's page (the leaf's
+	 * parent/ancestor page) lacked a downlink is incidental.
+	 */
+	if (P_ISDELETED(copaque))
+		ereport(ERROR,
+				(errcode(ERRCODE_INDEX_CORRUPTED),
+				 errmsg_internal("downlink to deleted leaf page found in index \"%s\"",
+								 RelationGetRelationName(state->rel)),
+				 errdetail_internal("Top parent/target block=%u leaf block=%u top parent/target lsn=%X/%X.",
+									state->targetblock, childblk,
+									(uint32) (state->targetlsn >> 32),
+									(uint32) state->targetlsn)));
+
+	/*
+	 * Iff leaf page is half-dead, its high key top parent link should point to
+	 * what VACUUM considered to be the top parent page at the instant it was
+	 * interrupted.  Provided the high key link actually points to the target
+	 * page, the missing downlink we detected is consistent with there having
+	 * been an interrupted multi-level page deletion.  This means that the
+	 * subtree with the target page at its root (a page deletion chain) is in a
+	 * consistent state, enabling VACUUM to resume deleting the entire chain
+	 * the next time it encounters the half-dead leaf page.
+	 */
+	if (P_ISHALFDEAD(copaque) && !P_RIGHTMOST(copaque))
+	{
+		itemid = PageGetItemId(child, P_HIKEY);
+		itup = (IndexTuple) PageGetItem(child, itemid);
+		if (ItemPointerGetBlockNumber(&itup->t_tid) == state->targetblock)
+			return;
+	}
+
+	ereport(ERROR,
+			(errcode(ERRCODE_INDEX_CORRUPTED),
+			 errmsg("internal index block lacks downlink in index \"%s\"",
+					RelationGetRelationName(state->rel)),
+			 errdetail_internal("Block=%u level=%u page lsn=%X/%X.",
+								state->targetblock, topaque->btpo.level,
+								(uint32) (state->targetlsn >> 32),
+								(uint32) state->targetlsn)));
+}
+
+/*
  * Per-tuple callback from IndexBuildHeapScan, used to determine if index has
  * all the entries that definitely should have been observed in leaf pages of
  * the target index (that is, all IndexTuples that were fingerprinted by our
  * Bloom filter).  All heapallindexed checks occur here.
- *
- * Theory of operation:
  *
  * The redundancy between an index and the table it indexes provides a good
  * opportunity to detect corruption, especially corruption within the table.
@@ -1213,11 +1558,6 @@ bt_downlink_check(BtreeCheckState *state, BlockNumber childblock,
  * IndexTuple that should be in an index following a fresh CREATE INDEX (based
  * on the same index definition) should also have been in the original,
  * existing index, which should have used exactly the same representation
- * (Index tuple formation is assumed to be deterministic, and IndexTuples are
- * assumed immutable; while the LP_DEAD bit is mutable, that's ItemId metadata,
- * which is not fingerprinted).  There will often be some dead-to-everyone
- * IndexTuples fingerprinted by the Bloom filter, but we only try to detect the
- * *absence of needed tuples*, so that's okay.
  *
  * Since the overall structure of the index has already been verified, the most
  * likely explanation for error here is a corrupt heap page (could be logical
@@ -1248,21 +1588,25 @@ bt_downlink_check(BtreeCheckState *state, BlockNumber childblock,
  * setting will probably also leave the index in a corrupt state before too
  * long, the problem is nonetheless that there is heap corruption.)
  *
- * Note also that heap-only tuple handling within IndexBuildHeapScan() detects
- * index tuples that contain the wrong values.  This can happen when there is
- * no superseding index tuple due to a faulty assessment of HOT safety.
- * Because the latest tuple's contents are used with the root TID, an error
- * will be raised when a tuple with the same TID but different (correct)
- * attribute values is passed back to us.  (Faulty assessment of HOT-safety was
- * behind the CREATE INDEX CONCURRENTLY bug that was fixed in February of
- * 2017.)
+ * Heap-only tuple handling within IndexBuildHeapScan() works in a way that
+ * helps us to detect index tuples that contain the wrong values (values that
+ * don't match the latest tuple in the HOT chain).  This can happen when there
+ * is no superseding index tuple due to a faulty assessment of HOT safety,
+ * perhaps during the original CREATE INDEX.  Because the latest tuple's
+ * contents are used with the root TID, an error will be raised when a tuple
+ * with the same TID but non-matching attribute values is passed back to us.
+ * Faulty assessment of HOT-safety was behind at least two distinct CREATE
+ * INDEX CONCURRENTLY bugs that made it into stable releases, one of which was
+ * undetected for many years.  In short, the same principle that allows a
+ * REINDEX to repair corruption when there was an (undetected) broken HOT chain
+ * also allows us to detect the corruption in many cases.
  */
 static void
 bt_tuple_present_callback(Relation index, HeapTuple htup, Datum *values,
 						  bool *isnull, bool tupleIsAlive, void *checkstate)
 {
 	BtreeCheckState *state = (BtreeCheckState *) checkstate;
-	IndexTuple		 itup;
+	IndexTuple	itup;
 
 	Assert(state->heapallindexed);
 
@@ -1272,24 +1616,21 @@ bt_tuple_present_callback(Relation index, HeapTuple htup, Datum *values,
 		TransactionId	xmin;
 
 		/*
-		 * Don't test for presence in index where xmin not at least old enough
-		 * that we know for sure that absence of index tuple wasn't just due to
-		 * some transaction performing insertion after our verifying index
-		 * traversal began.  (Actually, the cut-off used is a point where
-		 * preceding write transactions must have committed/aborted.  We should
-		 * have already fingerprinted all index tuples for all such preceding
-		 * transactions, because the cut-off was established before our index
-		 * traversal even began.)
+		 * In PostgreSQL 11, IndexBuildHeapScan() allows the caller to register
+		 * their own MVCC snapshot, which v11's contrib/amcheck takes advantage
+		 * of.  We cannot rely on IndexBuildHeapScan() support for letting
+		 * caller register their own snapshot, though, so we let
+		 * IndexBuildHeapScan() register an MVCC snapshot itself, and then
+		 * verify that any tuple passed back here would definitely be visible
+		 * to an MVCC snapshot that was registered at the start of our xact.
+		 * Heap tuple coverage is thereby similar to the coverage we could get
+		 * by using earliest transaction snapshot directly.
 		 *
-		 * You might think that the fact that an MVCC snapshot is used by the
-		 * heap scan (due to our indicating that this is the first scan of a
-		 * CREATE INDEX CONCURRENTLY index build) would make this test
-		 * redundant.  That's not quite true, because with current
-		 * IndexBuildHeapScan() interface caller cannot do the MVCC snapshot
-		 * acquisition itself.  Heap tuple coverage is thereby similar to the
-		 * coverage we could get by using earliest transaction snapshot
-		 * directly.  It's easier to do this than to adopt the
-		 * IndexBuildHeapScan() interface to our narrow requirements.
+		 * (Actually, the cut-off used is a point where preceding write
+		 * transactions must have committed/aborted.  We should have already
+		 * fingerprinted all index tuples for all such preceding transactions,
+		 * because the cut-off was established before our index traversal even
+		 * began.)
 		 */
 		Assert(tupleIsAlive);
 		xmin = HeapTupleHeaderGetXmin(htup->t_data);
@@ -1438,6 +1779,7 @@ palloc_btree_page(BtreeCheckState *state, BlockNumber blocknum)
 	Buffer		buffer;
 	Page		page;
 	BTPageOpaque opaque;
+	OffsetNumber maxoffset;
 
 	page = palloc(BLCKSZ);
 
@@ -1485,6 +1827,9 @@ palloc_btree_page(BtreeCheckState *state, BlockNumber blocknum)
 					 errmsg("version mismatch in index \"%s\": file version %d, code version %d",
 							RelationGetRelationName(state->rel),
 							metad->btm_version, BTREE_VERSION)));
+
+		/* Finished with metapage checks */
+		return page;
 	}
 
 	/*
@@ -1497,12 +1842,66 @@ palloc_btree_page(BtreeCheckState *state, BlockNumber blocknum)
 				 errmsg("invalid leaf page level %u for block %u in index \"%s\"",
 						opaque->btpo.level, blocknum, RelationGetRelationName(state->rel))));
 
-	if (blocknum != BTREE_METAPAGE && !P_ISLEAF(opaque) &&
-		!P_ISDELETED(opaque) && opaque->btpo.level == 0)
+	if (!P_ISLEAF(opaque) && !P_ISDELETED(opaque) &&
+		opaque->btpo.level == 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_INDEX_CORRUPTED),
 				 errmsg("invalid internal page level 0 for block %u in index \"%s\"",
-						opaque->btpo.level, RelationGetRelationName(state->rel))));
+						blocknum, RelationGetRelationName(state->rel))));
+
+	/*
+	 * Sanity checks for number of items on page.
+	 *
+	 * As noted at the beginning of _bt_binsrch(), an internal page must have
+	 * children, since there must always be a negative infinity downlink (there
+	 * may also be a highkey).  In the case of non-rightmost leaf pages, there
+	 * must be at least a highkey.
+	 *
+	 * This is correct when pages are half-dead, since internal pages are never
+	 * half-dead, and leaf pages must have a high key when half-dead (the
+	 * rightmost page can never be deleted).  It's also correct with fully
+	 * deleted pages: _bt_unlink_halfdead_page() doesn't change anything about
+	 * the target page other than setting the page as fully dead, and setting
+	 * its xact field.  In particular, it doesn't change the sibling links in
+	 * the deletion target itself, since they're required when index scans land
+	 * on the deletion target, and then need to move right (or need to move
+	 * left, in the case of backward index scans).
+	 */
+	maxoffset = PageGetMaxOffsetNumber(page);
+	if (maxoffset > MaxIndexTuplesPerPage)
+		ereport(ERROR,
+				(errcode(ERRCODE_INDEX_CORRUPTED),
+				 errmsg("Number of items on block %u of index \"%s\" exceeds MaxIndexTuplesPerPage (%u)",
+						blocknum, RelationGetRelationName(state->rel),
+						MaxIndexTuplesPerPage)));
+
+	if (!P_ISLEAF(opaque) && maxoffset < P_FIRSTDATAKEY(opaque))
+		ereport(ERROR,
+				(errcode(ERRCODE_INDEX_CORRUPTED),
+				 errmsg("internal block %u in index \"%s\" lacks high key and/or at least one downlink",
+						blocknum, RelationGetRelationName(state->rel))));
+
+	if (P_ISLEAF(opaque) && !P_RIGHTMOST(opaque) && maxoffset < P_HIKEY)
+		ereport(ERROR,
+				(errcode(ERRCODE_INDEX_CORRUPTED),
+				 errmsg("non-rightmost leaf block %u in index \"%s\" lacks high key item",
+						blocknum, RelationGetRelationName(state->rel))));
+
+	/*
+	 * In general, internal pages are never marked half-dead, except on
+	 * versions of Postgres prior to 9.4, where it can be valid transient
+	 * state.  This state is nonetheless treated as corruption by VACUUM on
+	 * from version 9.4 on, so do the same here.  See _bt_pagedel() for full
+	 * details.
+	 *
+	 * Internal pages should never have garbage items, either.
+	 */
+	if (!P_ISLEAF(opaque) && P_ISHALFDEAD(opaque))
+		ereport(ERROR,
+				(errcode(ERRCODE_INDEX_CORRUPTED),
+				 errmsg("internal page block %u in index \"%s\" is half-dead",
+						blocknum, RelationGetRelationName(state->rel)),
+				 errhint("This can be caused by an interrupted VACUUM in version 9.3 or older, before upgrade. Please REINDEX it.")));
 
 	if (!P_ISLEAF(opaque) && P_HAS_GARBAGE(opaque))
 		ereport(ERROR,

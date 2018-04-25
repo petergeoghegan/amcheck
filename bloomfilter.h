@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * bloomfilter.h
- *	  Minimal Bloom filter
+ *	  Space-efficient set membership testing
  *
  * Portions Copyright (c) 2016-2018, Peter Geoghegan
  * Portions Copyright (c) 1996-2018, The PostgreSQL Global Development Group
@@ -12,18 +12,18 @@
  *
  *-------------------------------------------------------------------------
  */
-#ifndef _BLOOMFILTER_H_
-#define _BLOOMFILTER_H_
+#ifndef BLOOMFILTER_H
+#define BLOOMFILTER_H
 
 typedef struct bloom_filter bloom_filter;
 
 extern bloom_filter *bloom_create(int64 total_elems, int bloom_work_mem,
-								  uint32 seed);
+			 uint64 seed);
 extern void bloom_free(bloom_filter *filter);
 extern void bloom_add_element(bloom_filter *filter, unsigned char *elem,
-							  size_t len);
+				  size_t len);
 extern bool bloom_lacks_element(bloom_filter *filter, unsigned char *elem,
-								size_t len);
+					size_t len);
 extern double bloom_prop_bits_set(bloom_filter *filter);
 
-#endif
+#endif							/* BLOOMFILTER_H */

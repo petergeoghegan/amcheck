@@ -7,7 +7,6 @@ Section: database
 Homepage: https://github.com/petergeoghegan/amcheck
 Vcs-Git: https://github.com/petergeoghegan/amcheck.git
 Vcs-Browser: https://github.com/petergeoghegan/amcheck
-XS-Testsuite: autopkgtest
 
 Package: postgresql-9.4-amcheck
 Section: libs

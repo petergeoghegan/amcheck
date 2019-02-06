@@ -1,6 +1,6 @@
-Portions Copyright (c) 2016-2018, Peter Geoghegan
+Portions Copyright (c) 2016-2019, Peter Geoghegan
 
-Portions Copyright (c) 1996-2018, The PostgreSQL Global Development Group
+Portions Copyright (c) 1996-2019, The PostgreSQL Global Development Group
 
 Portions Copyright (c) 1994, The Regents of the University of California
 

@@ -1,6 +1,6 @@
 # amcheck/amcheck_next: functions for verifying PostgreSQL relation integrity
 
-Current version: 1.4 (`amcheck_next` extension/SQL version: 2)
+Current version: 1.5 (`amcheck_next` extension/SQL version: 2)
 
 Author: Peter Geoghegan [`<pg@bowt.ie>`](mailto:pg@bowt.ie)
 
@@ -112,8 +112,8 @@ If you are using a packaged PostgreSQL build and have `pg_config` available
 (and in your OS user's $PATH), the procedure is as follows:
 
 ```shell
-tar xvzf amcheck-1.3.tar.gz
-cd amcheck-1.3
+tar xvzf amcheck-1.5.tar.gz
+cd amcheck-1.5
 make
 make install
 ```

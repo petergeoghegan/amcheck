@@ -664,7 +664,7 @@ bt_check_level_from_leftmost(BtreeCheckState *state, BtreeLevel level)
 				/* Internal page -- downlink gets leftmost on next level */
 				itemid = PageGetItemId(state->target, P_FIRSTDATAKEY(opaque));
 				itup = (IndexTuple) PageGetItem(state->target, itemid);
-				nextleveldown.leftmost = ItemPointerGetBlockNumber(&(itup->t_tid));
+				nextleveldown.leftmost = ItemPointerGetBlockNumberNoCheck(&(itup->t_tid));
 				nextleveldown.level = opaque->btpo.level - 1;
 			}
 			else
@@ -826,7 +826,7 @@ bt_target_page_check(BtreeCheckState *state)
 		/* Fingerprint downlink blocks in heapallindexed + readonly case */
 		if (state->heapallindexed && state->readonly && !P_ISLEAF(topaque))
 		{
-			BlockNumber childblock = ItemPointerGetBlockNumber(&itup->t_tid);
+			BlockNumber childblock = ItemPointerGetBlockNumberNoCheck(&itup->t_tid);
 
 			bloom_add_element(state->downlinkfilter,
 							  (unsigned char *) &childblock,
@@ -884,8 +884,8 @@ bt_target_page_check(BtreeCheckState *state)
 
 			itid = psprintf("(%u,%u)", state->targetblock, offset);
 			htid = psprintf("(%u,%u)",
-							ItemPointerGetBlockNumber(&(itup->t_tid)),
-							ItemPointerGetOffsetNumber(&(itup->t_tid)));
+							ItemPointerGetBlockNumberNoCheck(&(itup->t_tid)),
+							ItemPointerGetOffsetNumberNoCheck(&(itup->t_tid)));
 
 			ereport(ERROR,
 					(errcode(ERRCODE_INDEX_CORRUPTED),
@@ -916,8 +916,8 @@ bt_target_page_check(BtreeCheckState *state)
 
 			itid = psprintf("(%u,%u)", state->targetblock, offset);
 			htid = psprintf("(%u,%u)",
-							ItemPointerGetBlockNumber(&(itup->t_tid)),
-							ItemPointerGetOffsetNumber(&(itup->t_tid)));
+							ItemPointerGetBlockNumberNoCheck(&(itup->t_tid)),
+							ItemPointerGetOffsetNumberNoCheck(&(itup->t_tid)));
 			nitid = psprintf("(%u,%u)", state->targetblock,
 							 OffsetNumberNext(offset));
 
@@ -925,8 +925,8 @@ bt_target_page_check(BtreeCheckState *state)
 			itemid = PageGetItemId(state->target, OffsetNumberNext(offset));
 			itup = (IndexTuple) PageGetItem(state->target, itemid);
 			nhtid = psprintf("(%u,%u)",
-							 ItemPointerGetBlockNumber(&(itup->t_tid)),
-							 ItemPointerGetOffsetNumber(&(itup->t_tid)));
+							 ItemPointerGetBlockNumberNoCheck(&(itup->t_tid)),
+							 ItemPointerGetOffsetNumberNoCheck(&(itup->t_tid)));
 
 			ereport(ERROR,
 					(errcode(ERRCODE_INDEX_CORRUPTED),
@@ -1014,7 +1014,7 @@ bt_target_page_check(BtreeCheckState *state)
 		 */
 		if (!P_ISLEAF(topaque) && state->readonly)
 		{
-			BlockNumber childblock = ItemPointerGetBlockNumber(&(itup->t_tid));
+			BlockNumber childblock = ItemPointerGetBlockNumberNoCheck(&(itup->t_tid));
 
 			bt_downlink_check(state, childblock, skey);
 		}
@@ -1470,7 +1470,7 @@ bt_downlink_missing_check(BtreeCheckState *state)
 	level = topaque->btpo.level;
 	itemid = PageGetItemId(state->target, P_FIRSTDATAKEY(topaque));
 	itup = (IndexTuple) PageGetItem(state->target, itemid);
-	childblk = ItemPointerGetBlockNumber(&itup->t_tid);
+	childblk = ItemPointerGetBlockNumberNoCheck(&itup->t_tid);
 	for (;;)
 	{
 		CHECK_FOR_INTERRUPTS();
@@ -1494,7 +1494,7 @@ bt_downlink_missing_check(BtreeCheckState *state)
 		level = copaque->btpo.level;
 		itemid = PageGetItemId(child, P_FIRSTDATAKEY(copaque));
 		itup = (IndexTuple) PageGetItem(child, itemid);
-		childblk = ItemPointerGetBlockNumber(&itup->t_tid);
+		childblk = ItemPointerGetBlockNumberNoCheck(&itup->t_tid);
 		/* Be slightly more pro-active in freeing this memory, just in case */
 		pfree(child);
 	}
@@ -1543,7 +1543,7 @@ bt_downlink_missing_check(BtreeCheckState *state)
 	{
 		itemid = PageGetItemId(child, P_HIKEY);
 		itup = (IndexTuple) PageGetItem(child, itemid);
-		if (ItemPointerGetBlockNumber(&itup->t_tid) == state->targetblock)
+		if (ItemPointerGetBlockNumberNoCheck(&itup->t_tid) == state->targetblock)
 			return;
 	}
 
@@ -1660,8 +1660,8 @@ bt_tuple_present_callback(Relation index, HeapTuple htup, Datum *values,
 		ereport(ERROR,
 				(errcode(ERRCODE_DATA_CORRUPTED),
 				 errmsg("heap tuple (%u,%u) from table \"%s\" lacks matching index tuple within index \"%s\"",
-						ItemPointerGetBlockNumber(&(itup->t_tid)),
-						ItemPointerGetOffsetNumber(&(itup->t_tid)),
+						ItemPointerGetBlockNumberNoCheck(&(itup->t_tid)),
+						ItemPointerGetOffsetNumberNoCheck(&(itup->t_tid)),
 						RelationGetRelationName(state->heaprel),
 						RelationGetRelationName(state->rel)),
 				 !state->readonly
@@ -1736,8 +1736,8 @@ bt_normalize_tuple(BtreeCheckState *state, IndexTuple itup)
 			ereport(ERROR,
 					(errcode(ERRCODE_INDEX_CORRUPTED),
 					 errmsg("external varlena datum in tuple that references heap row (%u,%u) in index \"%s\"",
-							ItemPointerGetBlockNumber(&(itup->t_tid)),
-							ItemPointerGetOffsetNumber(&(itup->t_tid)),
+							ItemPointerGetBlockNumberNoCheck(&(itup->t_tid)),
+							ItemPointerGetOffsetNumberNoCheck(&(itup->t_tid)),
 							RelationGetRelationName(state->rel))));
 		else if (VARATT_IS_COMPRESSED(DatumGetPointer(normalized[i])))
 		{

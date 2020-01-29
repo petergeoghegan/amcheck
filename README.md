@@ -34,9 +34,8 @@ about the kinds of real-world problems `amcheck` is intended to detect.
 10](https://www.postgresql.org/docs/current/static/amcheck.html).  This
 externally maintained version of the extension, which is formally named
 `amcheck_next` to avoid conflicts with `contrib/amcheck`, provides the same
-functionality to earlier versions of PostgreSQL.  `amcheck_next` also exists to
-provide additional verification checks that do not yet appear in stable
-PostgreSQL `contrib/amcheck` releases.
+functionality as PostgreSQL 11's `contrib/amcheck` to earlier versions of
+PostgreSQL.
 
 It is safe (though generally not useful) to install `amcheck_next` alongside
 `contrib/amcheck`.

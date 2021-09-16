@@ -61,10 +61,6 @@ documentation on Index Access Methods and Operator
 Classes](https://www.postgresql.org/docs/current/static/xindex.html) for details
 of operator class support functions.
 
-### Test status
-
-[![Build Status](https://travis-ci.org/petergeoghegan/amcheck.svg?branch=master)](https://travis-ci.org/petergeoghegan/amcheck)
-
 ## Installation
 
 ### Prebuilt packages
